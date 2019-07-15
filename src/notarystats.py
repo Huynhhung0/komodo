@@ -65,8 +65,6 @@ for i in range(startheight,stopheight):
     KMD = ret['KMD']
     if len(KMD) > 0:
         for obj in KMD:
-            #for now skip KMD for this. As official stats are from BTC chain
-            # this can be reversed to !== to count KMD numbers :)
             score = 1
             if obj['chain'] == 'KMD':
                 score = 10
@@ -81,7 +79,7 @@ NA = []
 for notary in notaries:
     tmpnotary = {}
     tmpnotary['node'] = notarynames[i]
-    tmpnotary['ac_count'] = notary
+    tmpnotary['score'] = notary
     if notarynames[i].endswith('SH'):
         SH.append(tmpnotary)
     elif notarynames[i].endswith('AR'):
