@@ -67,10 +67,11 @@ for i in range(startheight,stopheight):
         for obj in KMD:
             #for now skip KMD for this. As official stats are from BTC chain
             # this can be reversed to !== to count KMD numbers :)
+            score = 1
             if obj['chain'] == 'KMD':
-                continue;
+                score = 10
             for notary in obj['notaries']:
-                notaries[notary] = notaries[notary] + 1
+                notaries[notary] = notaries[notary] + score
 
 i = 0
 SH = [] 
