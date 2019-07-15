@@ -91,9 +91,9 @@ for notary in notaries:
     i = i + 1
 
 regions = {}
-regions['SH'] = sorted(SH, key=lambda k: k['ac_count'], reverse=True)
-regions['AR'] = sorted(AR, key=lambda k: k['ac_count'], reverse=True)
-regions['EU'] = sorted(EU, key=lambda k: k['ac_count'], reverse=True)
-regions["NA"] = sorted(NA, key=lambda k: k['ac_count'], reverse=True)
+regions['SH'] = sorted(SH, key=lambda k: k['score'], reverse=True)
+regions['AR'] = sorted(AR, key=lambda k: k['score'], reverse=True)
+regions['EU'] = sorted(EU, key=lambda k: k['score'], reverse=True)
+regions["NA"] = sorted(NA, key=lambda k: k['score'], reverse=True)
 
 pp.pprint(regions)
