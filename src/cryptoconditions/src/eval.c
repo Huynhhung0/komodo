@@ -13,12 +13,12 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
-#include "asn/EvalFulfillment.h"
-#include "asn/OCTET_STRING.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
+//#include "asn/EvalFulfillment.h"
+//#include "asn/OCTET_STRING.h"
 //#include "../include/cryptoconditions.h"
-#include "internal.h"
+//#include "internal.h"
 //#include "include/cJSON.h"
 
 

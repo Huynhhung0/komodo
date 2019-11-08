@@ -13,14 +13,13 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
-#include "asn/Ed25519FingerprintContents.h"
-#include "asn/OCTET_STRING.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
+//#include "asn/OCTET_STRING.h"
 //#include "include/cJSON.h"
-#include "include/ed25519/src/ed25519.h"
 //#include "../include/cryptoconditions.h"
-
+#include "asn/Ed25519FingerprintContents.h"
+#include "include/ed25519/src/ed25519.h"
 
 struct CCType CC_Ed25519Type;
 

@@ -13,13 +13,12 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
-#include "asn/PrefixFingerprintContents.h"
-#include "asn/OCTET_STRING.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
+//#include "asn/OCTET_STRING.h"
 //#include "include/cJSON.h"
 //#include "../include/cryptoconditions.h"
-
+#include "asn/PrefixFingerprintContents.h"
 
 struct CCType CC_PrefixType;
 

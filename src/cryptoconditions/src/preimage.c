@@ -13,13 +13,12 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
-#include "asn/OCTET_STRING.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
+//#include "asn/OCTET_STRING.h"
 //#include "include/cJSON.h"
-#include "include/sha256.h"
 //#include "../include/cryptoconditions.h"
-
+#include "include/sha256.h"
 
 struct CCType CC_PreimageType;
 
