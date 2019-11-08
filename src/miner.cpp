@@ -161,6 +161,29 @@ int32_t komodo_getnotarizedheight(uint32_t timestamp,int32_t height, uint8_t *sc
 CScript komodo_mineropret(int32_t nHeight);
 bool komodo_appendACscriptpub();
 
+int32_t komodo_waituntilelegible(uint32_t blocktime, int32_t stakeHeight, uint32_t delay)
+{
+    int64_t adjustedtime = (int64_t)GetAdjustedTime();
+    while ( (int64_t)blocktime-57 > adjustedtime )
+    {
+        int64_t secToElegible = (int64_t)blocktime-57-adjustedtime;
+        if ( delay <= 27 && secToElegible <= 27 )
+            break;
+        if ( (rand() % 100) < 2-(secToElegible>57) ) 
+            fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
+        if ( chainActive.LastTip()->GetHeight() >= stakeHeight )
+        {
+            fprintf(stderr, "[%s:%i] Chain advanced, reset staking loop.\n", ASSETCHAINS_SYMBOL, stakeHeight);
+            return(0);
+        }
+        if( !GetBoolArg("-gen",false) ) 
+            return(0);
+        sleep(1);
+        adjustedtime = (int64_t)GetAdjustedTime();
+    } 
+    return(1);
+}
+
 CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32_t gpucount, bool isStake)
 {
     CScript scriptPubKeyIn(_scriptPubKeyIn);
@@ -602,21 +625,9 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             {
                 blocktime = GetAdjustedTime();
                 siglen = komodo_staked(txStaked, pblock->nBits, &blocktime, &txtime, &utxotxid, &utxovout, &utxovalue, utxosig);
-                // if you skip this check it will create a block too far into the future and not pass ProcessBlock or AcceptBlock.
-                // This has been moved from the mining loop to save CPU, and to also make ac_staked work with the verus miner.
-                while ( blocktime-57 > GetAdjustedTime() )
-                {
-                    sleep(1);
-                    if ( (rand() % 100) < 1 )
-                        fprintf(stderr, "%u seconds until elegible, waiting.\n", blocktime-((uint32_t)GetAdjustedTime()+57));
-                    if ( chainActive.LastTip()->GetHeight() >= stakeHeight )
-                    {
-                        fprintf(stderr, "Block Arrived, reset staking loop.\n");
-                        return(0);
-                    }
-                    if( !GetBoolArg("-gen",false) )
-                        return(0);
-                }
+                
+                if ( komodo_waituntilelegible(blocktime, stakeHeight, (ASSETCHAINS_ALGO!=ASSETCHAINS_EQUIHASH?57:27)) == 0 )
+                    return(0);
             }
 
             if ( siglen > 0 )
@@ -1911,12 +1922,15 @@ void static BitcoinMiner()
                                 MilliSleep((rand() % (r * 1000)) + 1000);
                         }
                     }
-                    else
+                    else if ( KOMODO_MININGTHREADS == 0 )
                     {
+                        if ( komodo_waituntilelegible(B.nTime, Mining_height, 57) == 0 )
+                            return(false);
                         uint256 tmp = B.GetHash();
+                        fprintf(stderr,"[%s:%d] mined block ",ASSETCHAINS_SYMBOL,Mining_height);
                         int32_t z; for (z=31; z>=0; z--)
                             fprintf(stderr,"%02x",((uint8_t *)&tmp)[z]);
-                        fprintf(stderr," mined %s block %d!\n",ASSETCHAINS_SYMBOL,Mining_height);
+                        fprintf(stderr, "\n");
                     }
                     CValidationState state;
                     if ( !TestBlockValidity(state,B, chainActive.LastTip(), true, false))

@@ -744,8 +744,8 @@ void ThreadNotifyRecentlyAdded()
             std::chrono::time_point<std::chrono::steady_clock>(nextFire));
 
         boost::this_thread::interruption_point();
-
-        mempool.NotifyRecentlyAdded();
+        if ( !IsInitialBlockDownload() )
+            mempool.NotifyRecentlyAdded();
     }
 }
 

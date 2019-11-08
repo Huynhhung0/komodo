@@ -15,9 +15,9 @@
 
 #include "asn/Condition.h"
 #include "asn/Fulfillment.h"
-#include "include/cJSON.h"
 #include "asn/asn_application.h"
-#include "../include/cryptoconditions.h"
+//#include "include/cJSON.h"
+//#include "../include/cryptoconditions.h"
 
 #ifndef INTERNAL_H
 #define INTERNAL_H

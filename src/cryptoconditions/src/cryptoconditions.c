@@ -27,10 +27,7 @@
 #include "anon.c"
 #include "eval.c"
 #include "json_rpc.c"
-#include <cJSON.h>
-
-#include <stdlib.h>
-
+#include "include/cJSON.h"
 
 struct CCType *CCTypeRegistry[] = {
     &CC_PreimageType,
