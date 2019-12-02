@@ -1402,7 +1402,7 @@ uint32_t komodo_segid32(char *coinaddr)
 
 int8_t komodo_segid(int32_t nocache,int32_t height)
 {
-    CTxDestination voutaddress; CBlock block; CBlockIndex *pindex,*blockone; uint64_t value; uint32_t txtime; char voutaddr[64],destaddr[64]; int32_t txn_count,vout,newStakerActive=0; uint256 txid; CScript opret; int8_t segid = -1;
+    CTxDestination voutaddress; CBlock block; CBlockIndex *pindex,*blockone; uint64_t value; uint32_t txtime; char voutaddr[64],destaddr[64]; int32_t txn_count,vout,newStakerActive=0; uint256 txid,merkleroot; CScript opret; int8_t segid = -1;
     if ( height > 0 && (pindex= komodo_chainactive(height)) != 0 )
     {
         if ( nocache == 0 && pindex->segid >= -1 )

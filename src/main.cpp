@@ -3475,7 +3475,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if ( notarisationTx == 1 )
         {
             // Check if the notaries have been paid.
-            if ( block.vtx[0].vout.size() == 1+komodo_opretOffset(&block) )
+            if ( block.vtx[0].vout.size() == 1+komodo_opretOffset((CBlock*)&block) )
                 return state.DoS(100, error("ConnectBlock(): Notaries have not been paid!"),
                                 REJECT_INVALID, "bad-cb-amount");
             // calculate the notaries compensation and validate the amounts and pubkeys are correct.

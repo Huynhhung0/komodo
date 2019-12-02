@@ -187,29 +187,6 @@ int32_t komodo_waituntilelegible(uint32_t blocktime, int32_t stakeHeight, uint32
     return(1);
 }
 
-int32_t komodo_waituntilelegible(uint32_t blocktime, int32_t stakeHeight, uint32_t delay)
-{
-    int64_t adjustedtime = (int64_t)GetAdjustedTime();
-    while ( (int64_t)blocktime-57 > adjustedtime )
-    {
-        int64_t secToElegible = (int64_t)blocktime-57-adjustedtime;
-        if ( delay <= 27 && secToElegible <= 27 )
-            break;
-        if ( (rand() % 100) < 2-(secToElegible>57) ) 
-            fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
-        if ( chainActive.LastTip()->GetHeight() >= stakeHeight )
-        {
-            fprintf(stderr, "[%s:%i] Chain advanced, reset staking loop.\n", ASSETCHAINS_SYMBOL, stakeHeight);
-            return(0);
-        }
-        if( !GetBoolArg("-gen",false) ) 
-            return(0);
-        sleep(1);
-        adjustedtime = (int64_t)GetAdjustedTime();
-    } 
-    return(1);
-}
-
 CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32_t gpucount, bool isStake)
 {
     CScript scriptPubKeyIn(_scriptPubKeyIn);
