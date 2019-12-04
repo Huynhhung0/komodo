@@ -815,7 +815,7 @@ int32_t komodo_notarycmp(uint8_t *scriptPubKey,int32_t scriptlen,uint8_t pubkeys
 int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
 {
     static int32_t hwmheight;
-    int32_t staked_era; static int32_t lastStakedEra;
+    int32_t labs_era; static int32_t lastStakedEra;
     std::vector<int32_t> notarisations;
     uint64_t signedmask,voutmask; char symbol[KOMODO_ASSETCHAIN_MAXLEN],dest[KOMODO_ASSETCHAIN_MAXLEN]; struct komodo_state *sp;
     uint8_t scriptbuf[10001],pubkeys[64][33],rmd160[20],scriptPubKey[35]; uint256 zero,btctxid,txhash;
@@ -835,16 +835,16 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     //fprintf(stderr,"%s connect.%d\n",ASSETCHAINS_SYMBOL,pindex->nHeight);
     // Wallet Filter. Disabled here. Cant be activated by notaries or pools with some changes.
-    if ( is_STAKED(ASSETCHAINS_SYMBOL) != 0 || IS_STAKED_NOTARY > -1 )
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 || IS_LABS_NOTARY > -1 )
     {
-        staked_era = STAKED_era(pindex->GetBlockTime());
-        if ( !fJustCheck && staked_era != lastStakedEra )
+        labs_era = get_LABS_ERA(pindex->GetBlockTime());
+        if ( !fJustCheck && labs_era != lastStakedEra )
         {
             uint8_t tmp_pubkeys[64][33];
-            int8_t numSN = numStakedNotaries(tmp_pubkeys,staked_era);
-            UpdateNotaryAddrs(tmp_pubkeys,numSN);
-            STAKED_ERA = staked_era;
-            lastStakedEra = staked_era;
+            int8_t numSN = num_LABSNotaries(tmp_pubkeys,labs_era);
+            UpdateLABSNotaryAddrs(tmp_pubkeys,numSN);
+            LABS_ERA = labs_era;
+            lastStakedEra = labs_era;
         }
     }
     numnotaries = komodo_notaries(pubkeys,pindex->GetHeight(),pindex->GetBlockTime());
@@ -873,7 +873,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         txn_count = block.vtx.size();
         for (i=0; i<txn_count; i++)
         {
-            if ( (is_STAKED(ASSETCHAINS_SYMBOL) != 0 && staked_era == 0) || (is_STAKED(ASSETCHAINS_SYMBOL) == 255) ) {
+            if ( (is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 && labs_era == 0) || (is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 255) ) {
                 // in era gap or chain banned, no point checking any invlaid notarisations.
                 break;
             }

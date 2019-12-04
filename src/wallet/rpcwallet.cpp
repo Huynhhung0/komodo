@@ -77,6 +77,10 @@ uint32_t komodo_segid32(char *coinaddr);
 int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
 int32_t komodo_isnotaryvout(char *coinaddr,uint32_t tiptime); // from ac_private chains only
 CBlockIndex *komodo_getblockindex(uint256 hash);
+void komodo_statefname(char *fname,char *symbol,char *str);
+extern bool komodo_updateutxocache(CAmount nValue, CTxDestination notaryaddress, CTransaction* txin, int32_t vout);
+extern int64_t CCgettxout(uint256 txid,int32_t vout,int32_t mempoolflag,int32_t lockflag);
+extern uint32_t komodo_segid32(char *coinaddr);
 
 int64_t nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
@@ -87,7 +91,7 @@ UniValue z_getoperationstatus_IMPL(const UniValue&, bool);
 
 #define PLAN_NAME_MAX   8
 #define VALID_PLAN_NAME(x)  (strlen(x) <= PLAN_NAME_MAX)
-#define THROW_IF_SYNCING(INSYNC)  if (INSYNC == 0) { throw runtime_error(strprintf("%s: %s still syncing height %d of %d, aborting to prevent linkability analysis!",__FUNCTION__,komodo_chainname(),INSYNC,chainActive.Tip()->GetHeight())); }
+#define THROW_IF_SYNCING(INSYNC)  if (INSYNC == 0) { throw runtime_error(strprintf("%s: Chain still syncing at height %d, aborting to prevent linkability analysis!",__FUNCTION__,chainActive.Tip()->GetHeight())); }
 
 int tx_height( const uint256 &hash );
 
@@ -230,12 +234,189 @@ UniValue getnewaddress(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if (!pwalletMain->GetKeyFromPool(newKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
     CKeyID keyID = newKey.GetID();
-
     pwalletMain->SetAddressBook(keyID, strAccount, "receive");
-
+    
     return EncodeDestination(keyID);
 }
 
+void komodo_dumpwalletfilter()
+{
+    // save the wallet filter vector to a file for loading on restart of daemon. 
+    char fname[512];
+    komodo_statefname(fname,ASSETCHAINS_SYMBOL,(char *)"walletfilterlist");
+    remove(fname);
+    std::ofstream out(fname);
+    if ( fWalletFilter )
+        out << "1" << endl;
+    else 
+        out << "0" << endl;
+    for ( auto address : vWhiteListAddress )
+        out << address << endl;
+    out.close();
+}
+
+UniValue addwhitelistaddress(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() == 0)
+        throw runtime_error(
+            "addwhitelistaddress \"address1\" \"address2\" \"addressn\"\n"
+            "\nAdds a new " + strprintf("%s",komodo_chainname()) + " address to the whitelist walletfilter.\n"
+            "\nArguments:\n"
+            "1. \"address1\"        (string) A valid komodo R address.\n"
+            "\nResult:\n"
+            "\"number of valid addresses added\n"
+            "\nExamples:\n"
+            + HelpExampleCli("addwhitelistaddress", "RD6GgnrMpPaTSMn8vai6yiGA7mN4QGPV")
+            + HelpExampleRpc("addwhitelistaddress", "RD6GgnrMpPaTSMn8vai6yiGA7mN4QGPV")
+        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    int n = 0; std::string NotaryAddress;
+    if ( NOTARY_PUBKEY33[0] != 0 )
+    {
+       char Raddress[64]; 
+       pubkey2addr((char *)Raddress,(uint8_t *)NOTARY_PUBKEY33);
+       NotaryAddress.assign(Raddress);
+    }
+    for ( int i = 0; i < params.size(); i++)
+    {
+        // check address is a valid address
+        CTxDestination dest = DecodeDestination(params[i].get_str());
+        if ( IsValidDestination(dest) && params[i].get_str() != NotaryAddress )
+        {
+            bool dupe = false;
+            // then add it to the vector. 
+            for ( auto address : vWhiteListAddress )
+                if ( params[i].get_str() == address )
+                    dupe = true;
+            if ( !dupe )
+            {    
+                vWhiteListAddress.push_back(params[i].get_str()); 
+                n++;
+            }
+        }
+    }
+    komodo_dumpwalletfilter();
+    return n;
+}
+
+UniValue removewhitelistaddress(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() == 0)
+        throw runtime_error(
+            "removewhitelistaddress \"address1\" \"address2\" \"addressn\"\n"
+            "\nRemoves an " + strprintf("%s",komodo_chainname()) + " address from the whitelist walletfilter.\n"
+            "\nArguments:\n"
+            "1. \"address1\"        (string) A valid komodo R address.\n"
+            "\nResult:\n"
+            "\"number of valid addresses removed\n"
+            "\nExamples:\n"
+            + HelpExampleCli("removewhitelistaddress", "RD6GgnrMpPaTSMn8vai6yiGA7mN4QGPV")
+            + HelpExampleRpc("removewhitelistaddress", "RD6GgnrMpPaTSMn8vai6yiGA7mN4QGPV")
+        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    int n = 0, total = 0;
+    for ( int i = 0; i < params.size(); i++)
+    {
+        // check address is a valid address
+        CTxDestination dest = DecodeDestination(params[i].get_str());
+        if (IsValidDestination(dest))
+        {
+            int j;
+            for ( j = 0; j < vWhiteListAddress.size(); j++ )
+            {
+                if ( vWhiteListAddress[j] == params[i].get_str() )
+                {
+                    // then remove it from vector
+                    n++; total++;
+                    break;
+                }
+            }
+            if ( n > 0 )
+            {
+                vWhiteListAddress.erase(vWhiteListAddress.begin()+j);
+                n = 0;
+            }
+        }
+    }
+    komodo_dumpwalletfilter();
+    return total;
+}
+
+UniValue setwalletfilter(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "setwalletfilter \"true/false\"\n"
+            "\nTurns the walletfilter on or off.\n"
+            "\nArguments:\n"
+            "1. \"true/false\"        (string) True for on, False for off.\n"
+            "\nResult:\n"
+            "\"current status\n"
+            "\nExamples:\n"
+            + HelpExampleCli("setwalletfilter", "true")
+            + HelpExampleRpc("setwalletfilter", "false")
+        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    std::string ret;
+    if ( (ret= params[0].get_str()) == "true" )
+        fWalletFilter = true;
+    else if ( ret == "false" )
+        fWalletFilter = false;
+    
+    komodo_dumpwalletfilter();
+    if ( fWalletFilter )
+        return "true";
+    else
+       return "false";
+    return 0;
+}
+
+UniValue getwalletfilterstatus(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getwalletfilterstatus \n"
+            "\nReturns a list of address and walletfilter enabled/disabled.\n"
+            "\nResult:\n"
+            "\nenabled              (string) true/false\n"
+            "[                     (json array of string)\n"
+            "  \"" + strprintf("%s",komodo_chainname()) + "_address\"  (string) a " + strprintf("%s",komodo_chainname()) + " address in walletfilter\n"
+            "  ,...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getwalletfilterstatus","")
+            + HelpExampleRpc("getwalletfilterstatus","")
+        );
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    UniValue ret(UniValue::VOBJ); UniValue addresses(UniValue::VARR);
+    // get status
+    if ( fWalletFilter )
+        ret.push_back(make_pair("enabled", "true"));
+    else
+        ret.push_back(make_pair("enabled", "false"));
+    // get address list
+    for ( auto address : vWhiteListAddress )
+        addresses.push_back(address);
+        
+    if ( NOTARY_PUBKEY33[0] != 0 )
+    {
+       char Raddress[64]; 
+       pubkey2addr((char *)Raddress,(uint8_t *)NOTARY_PUBKEY33);
+       addresses.push_back(Raddress);
+    }
+    ret.push_back(make_pair("addresses", addresses));
+    
+    return ret;
+}
 
 UniValue rescanfromheight(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
@@ -2889,14 +3070,11 @@ UniValue resendwallettransactions(const UniValue& params, bool fHelp, const CPub
     return result;
 }
 
-bool komodo_updateutxocache(CAmount nValue, CTxDestination notaryaddress, CTransaction* txin, int32_t vout);
-int64_t CCgettxout(uint256 txid,int32_t vout,int32_t mempoolflag,int32_t lockflag);
-
 UniValue dpowlistunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     if (fHelp || params.size() < 2)
         throw runtime_error(
-            "dpowlistunspent satoshies address (reset)\n"
+            "dpowlistunspent satoshies address\n"
             "Only for Notary Nodes, returns a single utxo of the requested size from the specified address from the utxo cache.\n"
             );
 
@@ -2931,8 +3109,6 @@ UniValue dpowlistunspent(const UniValue& params, bool fHelp, const CPubKey& mypk
 
     return results;
 }
-
-extern uint32_t komodo_segid32(char *coinaddr);
 
 UniValue listunspent(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
@@ -5340,10 +5516,10 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp, const CPubKey& myp
 
             CAmount nValue = out.tx->vout[out.i].nValue;
 
-            if (maximum_utxo_size != 0)
+            if (maximum_utxo_size != 0) 
             {
                 //fprintf(stderr, "utxo txid.%s vout.%i nValue.%li scriptpubkeylength.%i\n",out.tx->GetHash().ToString().c_str(),out.i,nValue,out.tx->vout[out.i].scriptPubKey.size());
-                if (nValue > maximum_utxo_size)
+                if (nValue > maximum_utxo_size) 
                     continue;
                 if (nValue == 10000 && out.tx->vout[out.i].scriptPubKey.size() == 35)
                     continue;
@@ -5455,7 +5631,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp, const CPubKey& myp
     if (numUtxos < 2 && numNotes == 0) {
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Could not find any funds to merge.");
     }
-
+    
     // Sanity check: Don't do anything if:
     // - We only have one from address
     // - It's equal to toaddress
@@ -5496,7 +5672,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp, const CPubKey& myp
     boost::optional<TransactionBuilder> builder;
     if (isToSaplingZaddr || saplingNoteInputs.size() > 0) {
         builder = TransactionBuilder(Params().GetConsensus(), nextBlockHeight, pwalletMain);
-    } else
+    } else 
         contextualTx.nExpiryHeight = 0; // set non z-tx to have no expiry height.
 
     // Create operation and add to global queue
@@ -5685,7 +5861,7 @@ int32_t ensure_CCrequirements(uint8_t evalcode)
     CCerror = "";
     if ( ASSETCHAINS_CCDISABLES[evalcode] != 0 || (evalcode == EVAL_MARMARA && ASSETCHAINS_MARMARA == 0) )
     {
-        // check if a height activation has been set.
+        // check if a height activation has been set. 
         fprintf(stderr, "evalcode.%i activates at height. %i current height.%i\n", evalcode, mapHeightEvalActivate[evalcode], komodo_currentheight());
         if ( mapHeightEvalActivate[evalcode] == 0 || komodo_currentheight() == 0 || mapHeightEvalActivate[evalcode] > komodo_currentheight() )
         {
@@ -5805,9 +5981,9 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
     char Raddress[64];
     uint8_t pubkey33[33];
-    if ( NOTARY_PUBKEY33[0] == 0 )
+    if ( NOTARY_PUBKEY33[0] == 0 ) 
     {
-        if (strlen(params[0].get_str().c_str()) == 66)
+        if (strlen(params[0].get_str().c_str()) == 66) 
         {
             decode_hex(pubkey33,33,(char *)params[0].get_str().c_str());
             pubkey2addr((char *)Raddress,(uint8_t *)pubkey33);
@@ -5817,13 +5993,13 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
             {
                 CTxDestination dest = address.Get();
                 isminetype mine = pwalletMain ? IsMine(*pwalletMain, dest) : ISMINE_NO;
-                if ( mine == ISMINE_NO )
+                if ( mine == ISMINE_NO ) 
                     result.push_back(Pair("WARNING", "privkey for this pubkey is not imported to wallet!"));
-                else
+                else 
                 {
                     result.push_back(Pair("ismine", "true"));
                     std::string notaryname;
-                    if ( (IS_STAKED_NOTARY= StakedNotaryID(notaryname, Raddress)) > -1 )
+                    if ( (IS_LABS_NOTARY= LABS_NotaryID(notaryname, Raddress)) > -1 ) 
                     {
                         result.push_back(Pair("IsNotary", notaryname));
                         IS_KOMODO_NOTARY = 0;
@@ -5840,16 +6016,16 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
         else
             result.push_back(Pair("error", "pubkey is wrong length, must be 66 char hex string."));
     }
-    else
+    else 
     {
-        if ( NOTARY_ADDRESS.empty() )
+        if ( NOTARY_ADDRESS.empty() ) 
         {
           pubkey2addr((char *)Raddress,(uint8_t *)NOTARY_PUBKEY33);
           NOTARY_ADDRESS.assign(Raddress);
         }
         result.push_back(Pair("error", "Can only set pubkey once, to change it you need to restart your daemon."));
     }
-    if ( NOTARY_PUBKEY33[0] != 0 && !NOTARY_ADDRESS.empty() )
+    if ( NOTARY_PUBKEY33[0] != 0 && !NOTARY_ADDRESS.empty() ) 
     {
         result.push_back(Pair("address", NOTARY_ADDRESS));
         result.push_back(Pair("pubkey", NOTARY_PUBKEY));
@@ -6892,7 +7068,7 @@ UniValue gatewaysbind(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("not enough parameters for N pubkeys\n");
     }
     for (i=0; i<N; i++)
-    {
+    {       
         pubkey = ParseHex(params[6+i].get_str().c_str());
         if (pubkey.size()!= 33)
         {
@@ -7393,9 +7569,9 @@ UniValue priceslist(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if ( ensure_CCrequirements(EVAL_PRICES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
     uint32_t filter = 0;
-    if (params.size() == 1)
+    if (params.size() == 1) 
         filter = pricesGetParam(params[0]);
-
+    
     CPubKey emptypk;
 
     return(PricesList(filter, emptypk));
@@ -7661,7 +7837,7 @@ UniValue tokenorders(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error(CC_REQUIREMENTS_MSG);
 	if (params.size() == 1) {
 		tokenid = Parseuint256((char *)params[0].get_str().c_str());
-		if (tokenid == zeroid)
+		if (tokenid == zeroid) 
 			throw runtime_error("incorrect tokenid\n");
         return AssetOrders(tokenid, CPubKey(), 0);
 	}
@@ -7703,7 +7879,7 @@ UniValue tokenbalance(const UniValue& params, bool fHelp, const CPubKey& mypk)
     tokenid = Parseuint256((char *)params[0].get_str().c_str());
     if ( params.size() == 2 )
         pubkey = ParseHex(params[1].get_str().c_str());
-    else
+    else 
 		pubkey = Mypubkey();
 
     balance = GetTokenBalance(pubkey2pk(pubkey),tokenid);
@@ -7729,7 +7905,7 @@ UniValue tokenbalance(const UniValue& params, bool fHelp, const CPubKey& mypk)
 UniValue tokencreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     UniValue result(UniValue::VOBJ);
-    std::string name, description, hextx;
+    std::string name, description, hextx; 
     std::vector<uint8_t> nonfungibleData;
     int64_t supply; // changed from uin64_t to int64_t for this 'if ( supply <= 0 )' to work as expected
 
@@ -7754,7 +7930,7 @@ UniValue tokencreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         ERR_RESULT("Token supply must be positive");
         return(result);
     }
-
+    
     if (params.size() >= 3)     {
         description = params[2].get_str();
         if (description.size() > 4096)   {
@@ -7762,7 +7938,7 @@ UniValue tokencreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
             return(result);
         }
     }
-
+    
     if (params.size() == 4)    {
         nonfungibleData = ParseHex(params[3].get_str());
         if (nonfungibleData.size() > IGUANA_MAXSCRIPTSIZE) // opret limit
@@ -7780,19 +7956,19 @@ UniValue tokencreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if( hextx.size() > 0 )     {
         result.push_back(Pair("result", "success"));
         result.push_back(Pair("hex", hextx));
-    }
-    else
+    } 
+    else 
         ERR_RESULT(CCerror);
     return(result);
 }
 
 UniValue tokentransfer(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-    UniValue result(UniValue::VOBJ);
-    std::string hex;
-    int64_t amount;
+    UniValue result(UniValue::VOBJ); 
+    std::string hex; 
+    int64_t amount; 
     uint256 tokenid;
-
+    
     CCerror.clear();
 
     if ( fHelp || params.size() != 3)
@@ -7802,7 +7978,7 @@ UniValue tokentransfer(const UniValue& params, bool fHelp, const CPubKey& mypk)
     
     const CKeyStore& keystore = *pwalletMain;
     LOCK2(cs_main, pwalletMain->cs_wallet);
-
+    
     tokenid = Parseuint256((char *)params[0].get_str().c_str());
     std::vector<unsigned char> pubkey(ParseHex(params[1].get_str().c_str()));
     //amount = atol(params[2].get_str().c_str());
@@ -8190,7 +8366,7 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	if (txfee < 0) {
 		result.push_back(Pair("result", "error"));
 		result.push_back(Pair("error", "incorrect txfee"));
-		return result;
+		return result;    
 	}
 
 	if(params.size() == 7)	// tokens in satoshis:
@@ -8240,7 +8416,7 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 UniValue heiradd(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-	UniValue result;
+	UniValue result; 
 	uint256 fundingtxid;
 	int64_t amount;
 	int64_t inactivitytime;
@@ -8289,7 +8465,7 @@ UniValue heirclaim(const UniValue& params, bool fHelp, const CPubKey& mypk)
 UniValue heirinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
 	uint256 fundingtxid;
-	if (fHelp || params.size() != 1)
+	if (fHelp || params.size() != 1) 
 		throw runtime_error("heirinfo fundingtxid\n");
     if ( ensure_CCrequirements(EVAL_HEIR) < 0 )
 	    throw runtime_error(CC_REQUIREMENTS_MSG);
@@ -8299,7 +8475,7 @@ UniValue heirinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 UniValue heirlist(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-	if (fHelp || params.size() != 0)
+	if (fHelp || params.size() != 0) 
 		throw runtime_error("heirlist\n");
     if ( ensure_CCrequirements(EVAL_HEIR) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
@@ -8523,6 +8699,10 @@ static const CRPCCommand commands[] =
     { "wallet",             "getaddressesbyaccount",    &getaddressesbyaccount,    true  },
     { "wallet",             "getbalance",               &getbalance,               false },
     { "wallet",             "getnewaddress",            &getnewaddress,            true  },
+    { "wallet",             "addwhitelistaddress",      &addwhitelistaddress,      true  },
+    { "wallet",             "removewhitelistaddress",   &removewhitelistaddress,   true  },
+    { "wallet",             "setwalletfilter",          &setwalletfilter,          true  },
+    { "wallet",             "getwalletfilterstatus",    &getwalletfilterstatus,    true  },
     { "wallet",             "getrawchangeaddress",      &getrawchangeaddress,      true  },
     { "wallet",             "getreceivedbyaccount",     &getreceivedbyaccount,     false },
     { "wallet",             "getreceivedbyaddress",     &getreceivedbyaddress,     false },

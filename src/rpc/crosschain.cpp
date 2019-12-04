@@ -1144,7 +1144,7 @@ UniValue getNotarisationsForBlock(const UniValue& params, bool fHelp, const CPub
     UniValue kmd(UniValue::VARR);
     int8_t numNN = 0, numSN = 0; uint8_t notarypubkeys[64][33] = {0}; uint8_t LABSpubkeys[64][33] = {0};
     numNN = komodo_notaries(notarypubkeys, height, chainActive[height]->nTime);
-    numSN = numStakedNotaries(LABSpubkeys,STAKED_era(chainActive[height]->nTime));
+    numSN = num_LABSNotaries(LABSpubkeys,get_LABS_ERA(chainActive[height]->nTime));
 
     BOOST_FOREACH(const Notarisation& n, nibs)
     {
@@ -1152,7 +1152,7 @@ UniValue getNotarisationsForBlock(const UniValue& params, bool fHelp, const CPub
         uint256 hash; CTransaction tx;
         if ( myGetTransaction(n.first,tx,hash) )
         {
-            if ( is_STAKED(n.second.symbol) != 0 )
+            if ( is_LABSCHAIN(n.second.symbol) != 0 )
             {
                 if ( !GetNotarisationNotaries(LABSpubkeys, numSN, tx.vin, NotarisationNotaries) )
                     continue;
@@ -1172,7 +1172,7 @@ UniValue getNotarisationsForBlock(const UniValue& params, bool fHelp, const CPub
         for ( auto notary : NotarisationNotaries )
             notaryarr.push_back(notary);
         item.push_back(make_pair("notaries",notaryarr));
-        if ( is_STAKED(n.second.symbol) != 0 )
+        if ( is_LABSCHAIN(n.second.symbol) != 0 )
             labs.push_back(item);
         else 
             kmd.push_back(item);

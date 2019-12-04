@@ -24,8 +24,12 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
+//#include "asn/OCTET_STRING.h"
+//#include "include/cJSON.h"
+//#include "../include/cryptoconditions.h"
+//#include "internal.h"
 #include "asn/Secp256k1Fulfillment.h"
 #include "asn/Secp256k1FingerprintContents.h"
 #include "asn/OCTET_STRING.h"

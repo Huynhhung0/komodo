@@ -41,7 +41,7 @@ extern uint64_t ASSETCHAINS_NOTARY_PAY[];
 extern int32_t ASSETCHAINS_STAKED;
 extern const uint32_t nStakedDecemberHardforkTimestamp; //December 2019 hardfork
 extern const int32_t nDecemberHardforkHeight;   //December 2019 hardfork
-extern int8_t is_STAKED(const char *chain_name);
+extern int8_t is_LABSCHAIN(const char *chain_name);
 
 struct CDiskBlockPos
 {
@@ -552,16 +552,16 @@ public:
         }
         
         // leave the existing LABS exemption here for segid and notary pay, but also add a timestamp activated segid for non LABS PoS64 chains.
-        if ( (s.GetType() & SER_DISK) && is_STAKED(ASSETCHAINS_SYMBOL) != 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 )
+        if ( (s.GetType() & SER_DISK) && is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 )
         {
             READWRITE(nNotaryPay);
         }
-        if ( (s.GetType() & SER_DISK) && ASSETCHAINS_STAKED != 0 && (nTime > nStakedDecemberHardforkTimestamp || is_STAKED(ASSETCHAINS_SYMBOL) != 0) ) //December 2019 hardfork
+        if ( (s.GetType() & SER_DISK) && ASSETCHAINS_STAKED != 0 && (nTime > nStakedDecemberHardforkTimestamp || is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0) ) //December 2019 hardfork
         {
             READWRITE(segid);
         }
         
-        /*if ( (s.GetType() & SER_DISK) && (is_STAKED(ASSETCHAINS_SYMBOL) != 0) && ASSETCHAINS_NOTARY_PAY[0] != 0 )
+        /*if ( (s.GetType() & SER_DISK) && (is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0) && ASSETCHAINS_NOTARY_PAY[0] != 0 )
         {
             READWRITE(nNotaryPay);
             READWRITE(segid);

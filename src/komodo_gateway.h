@@ -682,7 +682,7 @@ int32_t komodo_bannedset(int32_t *indallvoutsp,uint256 *array,int32_t max)
 
 void komodo_passport_iteration();
 
-int32_t komodo_check_deposit(int32_t height,const CBlock& block,uint32_t prevtime) // verify above block is valid pax pricing
+int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pindex) // verify above block is valid pax pricing
 {
     static uint256 array[64]; static int32_t numbanned,indallvouts;
     int32_t i,j,k,n,ht,baseid,txn_count,activation,num,opretlen,offset=1,errs=0,notmatched=0,matched=0,kmdheights[256],otherheights[256]; uint256 hash,txids[256]; char symbol[KOMODO_ASSETCHAIN_MAXLEN],base[KOMODO_ASSETCHAIN_MAXLEN]; uint16_t vouts[256]; int8_t baseids[256]; uint8_t *script,opcode,rmd160s[256*20]; uint64_t total,subsidy,available,deposited,issued,withdrawn,approved,redeemed,seed; int64_t checktoshis,values[256],srcvalues[256]; struct pax_transaction *pax; struct komodo_state *sp; CTransaction tx;
@@ -721,10 +721,10 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,uint32_t prevtim
                         }
                     }
                     if ( fNotaryProofVinTxFound && block.vtx[0].vout[0].scriptPubKey == tx.vout[block.vtx[txn_count-1].vin[0].prevout.n].scriptPubKey )
-                        {
-                            notmatched = 1;
-                        }
-                }  
+                    {
+                        notmatched = 1;
+                    }
+                }
             }
             n = block.vtx[i].vin.size();
             for (j=0; j<n; j++)
@@ -814,11 +814,12 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,uint32_t prevtim
         else
         {
             checktoshis = 0;
-            if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD) && height > 1 )
+            if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 ) && height > 1 )
             {
-                if ( (checktoshis= komodo_checkcommission((CBlock *)&block,height)) < 0 )
+                int32_t skipstaketx = (pindex == 0 || pindex->segid == -2) ? -1 : pindex->segid >= 0;
+                if ( (checktoshis= komodo_checkcommission((CBlock *)&block,height,skipstaketx)) < 0 )
                 {
-                    fprintf(stderr,"ht.%d checktoshis %.8f overflow.%d total %.8f strangeout.%d\n",height,dstr(checktoshis),overflow,dstr(total),strangeout);
+                    fprintf(stderr,"ht.%d checktoshis %.8f overflow.%d total %.8f strangeout.%d skipstaketx.%d\n",height,dstr(checktoshis),overflow,dstr(total),strangeout,skipstaketx);
                     return(-1);
                 }
             }

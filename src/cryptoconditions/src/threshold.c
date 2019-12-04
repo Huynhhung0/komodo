@@ -13,8 +13,8 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "asn/Condition.h"
-#include "asn/Fulfillment.h"
+//#include "asn/Condition.h"
+//#include "asn/Fulfillment.h"
 #include "asn/ThresholdFingerprintContents.h"
 #include "asn/OCTET_STRING.h"
 //#include <cJSON.h>

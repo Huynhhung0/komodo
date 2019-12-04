@@ -98,7 +98,7 @@ int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestam
         timestamp = 0;
 
     // If this chain is not a staked chain, use the normal Komodo logic to determine notaries. This allows KMD to still sync and use its proper pubkeys for dPoW.
-    if ( is_STAKED(ASSETCHAINS_SYMBOL) == 0 )
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 0 )
     {
         int32_t kmd_season = 0;
         if ( ASSETCHAINS_SYMBOL[0] == 0 )
@@ -133,10 +133,10 @@ int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestam
     else if ( timestamp != 0 )
     { 
         // here we can activate our pubkeys for LABS chains everythig is in notaries_staked.cpp
-        int32_t staked_era; int8_t numSN;
+        int32_t labs_era; int8_t numSN;
         uint8_t staked_pubkeys[64][33];
-        staked_era = STAKED_era(timestamp);
-        numSN = numStakedNotaries(staked_pubkeys,staked_era);
+        labs_era = get_LABS_ERA(timestamp);
+        numSN = num_LABSNotaries(staked_pubkeys,labs_era);
         memcpy(pubkeys,staked_pubkeys,numSN * 33);
         return(numSN);
     }
