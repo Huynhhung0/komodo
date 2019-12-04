@@ -2026,11 +2026,11 @@ void komodo_args(char *argv0)
                 printf("ac_pubkey or ac_script wont work with ac_supply over 10 billion\n");
                 StartShutdown();
             }
-            if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
+            /*if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
             {
                 printf("Assetchains NOTARY PAY cannot be used with ac_pubkey or ac_script.\n");
                 StartShutdown();
-            }
+            } */
             if ( strlen(ASSETCHAINS_OVERRIDE_PUBKEY.c_str()) == 66 )
             {
                 decode_hex(ASSETCHAINS_OVERRIDE_PUBKEY33,33,(char *)ASSETCHAINS_OVERRIDE_PUBKEY.c_str());
