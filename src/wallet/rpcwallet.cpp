@@ -8169,7 +8169,6 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
 	UniValue result(UniValue::VOBJ);
 	uint256 tokenid = zeroid;
-	int64_t txfee;
 	int64_t amount;
 	int64_t inactivitytime;
 	std::string hex;
@@ -8179,8 +8178,8 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	if (!EnsureWalletIsAvailable(fHelp))
 	    return NullUniValue;
 
-	if (fHelp || params.size() != 6 && params.size() != 7)
-		throw runtime_error("heirfund txfee funds heirname heirpubkey inactivitytime memo [tokenid]\n");
+	if (fHelp || params.size() != 5 && params.size() != 6)
+		throw runtime_error("heirfund funds heirname heirpubkey inactivitytime memo [tokenid]\n");
 	if (ensure_CCrequirements(EVAL_HEIR) < 0)
 		throw runtime_error(CC_REQUIREMENTS_MSG);
 
@@ -8204,26 +8203,26 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 		return result;
 	}
 
-	name = params[2].get_str();
+	name = params[1].get_str();
 
-	pubkey = ParseHex(params[3].get_str().c_str());
+	pubkey = ParseHex(params[2].get_str().c_str());
 	if (!pubkey2pk(pubkey).IsValid()) {
 		result.push_back(Pair("result", "error"));
 		result.push_back(Pair("error", "incorrect pubkey"));
 		return result;
 	}
 
-	inactivitytime = atoll(params[4].get_str().c_str());
+	inactivitytime = atoll(params[3].get_str().c_str());
 	if (inactivitytime <= 0) {
 		result.push_back(Pair("result", "error"));
 		result.push_back(Pair("error", "incorrect inactivity time"));
 		return result;
 	}
 
-	memo = params[5].get_str();
+	memo = params[4].get_str();
 
-	if (params.size() == 7) {
-		tokenid = Parseuint256((char*)params[6].get_str().c_str());
+	if (params.size() == 6) {
+		tokenid = Parseuint256((char*)params[5].get_str().c_str());
 		if (tokenid == zeroid) {
 			result.push_back(Pair("result", "error"));
 			result.push_back(Pair("error", "incorrect tokenid"));
@@ -8232,9 +8231,9 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	}
 
 	if( tokenid == zeroid )
-		result = HeirFundCoinCaller(txfee, amount, name, pubkey2pk(pubkey), inactivitytime, memo);
+		result = HeirFundCoinCaller(0, amount, name, pubkey2pk(pubkey), inactivitytime, memo);
 	else
-		result = HeirFundTokenCaller(txfee, amount, name, pubkey2pk(pubkey), inactivitytime, memo, tokenid);
+		result = HeirFundTokenCaller(0, amount, name, pubkey2pk(pubkey), inactivitytime, memo, tokenid);
 
 	return result;
 }
@@ -8243,7 +8242,6 @@ UniValue heiradd(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
 	UniValue result;
 	uint256 fundingtxid;
-	int64_t txfee;
 	int64_t amount;
 	int64_t inactivitytime;
 	std::string hex;
@@ -8253,24 +8251,18 @@ UniValue heiradd(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	if (!EnsureWalletIsAvailable(fHelp))
 	    return NullUniValue;
 
-	if (fHelp || params.size() != 3)
-		throw runtime_error("heiradd txfee funds fundingtxid\n");
+	if (fHelp || params.size() != 2)
+		throw runtime_error("heiradd funds fundingtxid\n");
 	if (ensure_CCrequirements(EVAL_HEIR) < 0)
 		throw runtime_error(CC_REQUIREMENTS_MSG);
 
 	const CKeyStore& keystore = *pwalletMain;
 	LOCK2(cs_main, pwalletMain->cs_wallet);
 
-	txfee = atoll(params[0].get_str().c_str());
-	if (txfee < 0) {
-		result.push_back(Pair("result", "error"));
-		result.push_back(Pair("error", "incorrect txfee"));
-		return result;
-	}
+	std::string strAmount = params[0].get_str();
+	fundingtxid = Parseuint256((char*)params[1].get_str().c_str());
 
-	fundingtxid = Parseuint256((char*)params[2].get_str().c_str());
-
-	result = HeirAddCaller(fundingtxid, txfee, params[1].get_str());
+	result = HeirAddCaller(fundingtxid, 0, strAmount);
 	return result;
 }
 
@@ -8288,8 +8280,9 @@ UniValue heirclaim(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	const CKeyStore& keystore = *pwalletMain;
 	LOCK2(cs_main, pwalletMain->cs_wallet);
 
-	fundingtxid = Parseuint256((char*)params[2].get_str().c_str());
-	result = HeirClaimCaller(fundingtxid, 0, params[1].get_str());
+    	std::string strAmount = params[0].get_str();
+	fundingtxid = Parseuint256((char*)params[1].get_str().c_str());
+	result = HeirClaimCaller(fundingtxid, 0, strAmount);
 	return result;
 }
 
