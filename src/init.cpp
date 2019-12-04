@@ -744,8 +744,7 @@ void ThreadNotifyRecentlyAdded()
             std::chrono::time_point<std::chrono::steady_clock>(nextFire));
 
         boost::this_thread::interruption_point();
-        if ( !IsInitialBlockDownload() )
-            mempool.NotifyRecentlyAdded();
+        mempool.NotifyRecentlyAdded();
     }
 }
 
@@ -1239,6 +1238,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 
     // Initialize elliptic curve code
+    std::string sha256_algo = SHA256AutoDetect();
+    LogPrintf("Using the '%s' SHA256 implementation\n", sha256_algo);
     ECC_Start();
     globalVerifyHandle.reset(new ECCVerifyHandle());
 
@@ -1951,7 +1952,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         uiInterface.InitMessage(_("Activating best chain..."));
         // scan for better chains in the block chain database, that are not yet connected in the active best chain
         CValidationState state;
-        if ( !ActivateBestChain(true,state))
+        if ( !ActivateBestChain(false,state) )
             strErrors << "Failed to connect best block";
     }
     std::vector<boost::filesystem::path> vImportFiles;

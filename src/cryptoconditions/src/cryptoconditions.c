@@ -18,7 +18,7 @@
 #include "asn/Fulfillment.h"
 #include "asn/OCTET_STRING.h"
 #include "../include/cryptoconditions.h"
-#include "include/cJSON.h"
+#include <cJSON.h>
 #include "internal.h"
 #include "threshold.c"
 #include "prefix.c"
@@ -28,7 +28,6 @@
 #include "anon.c"
 #include "eval.c"
 #include "json_rpc.c"
-
 
 struct CCType *CCTypeRegistry[] = {
     &CC_PreimageType,

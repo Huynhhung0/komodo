@@ -6,7 +6,7 @@
 #include "cc/CCinclude.h"
 /*
     Leave min sigs as 7 for now...
-    See int32_t LABSMINSIGS(int32_t numSN) in notaries_staked.cpp
+    See int32_t int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp) in notaries_staked.cpp
     Simple as adding timestamp, number of pubkeys, and the pubkeys. 
 */
 static const int32_t iguanaPort = 9333;
@@ -98,7 +98,7 @@ int32_t STAKED_era(int timestamp);
 int8_t numStakedNotaries(uint8_t pubkeys[64][33],int8_t era);
 int8_t StakedNotaryID(std::string &notaryname, char *Raddress);
 void UpdateNotaryAddrs(uint8_t pubkeys[64][33],int8_t numNotaries);
-int32_t LABSMINSIGS(int32_t numSN);
+int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp);
 
 CrosschainAuthority Choose_auth_STAKED(int32_t chosen_era);
 

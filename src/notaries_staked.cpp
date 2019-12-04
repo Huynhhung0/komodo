@@ -2,13 +2,10 @@
 #include "notaries_staked.h"
 #include "crosschain.h"
 #include "cc/CCinclude.h"
+#include "komodo_defs.h"
 #include <cstring>
 
-extern char NOTARYADDRS[64][64];
-extern std::string NOTARY_ADDRESS,NOTARY_PUBKEY;
-extern int32_t STAKED_ERA,IS_STAKED_NOTARY,IS_KOMODO_NOTARY;
 extern pthread_mutex_t staked_mutex;
-extern uint8_t NOTARY_PUBKEY33[33];
 
 int8_t is_STAKED(const char *chain_name) 
 {
@@ -126,10 +123,10 @@ void UpdateNotaryAddrs(uint8_t pubkeys[64][33],int8_t numNotaries) {
     }
 }
 
-int32_t LABSMINSIGS(int32_t numSN)
+int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp)
 {
     /* 
-        This will need some kind of height activation to work properly! 
+        This will need some kind of height or timestamp activation to work properly! 
         Leaving min sigs at 7 for now is the safest,
     */
     int32_t minsigs;
