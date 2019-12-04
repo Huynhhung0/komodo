@@ -1980,19 +1980,16 @@ void static BitcoinMiner()
                     }
                     else if ( KOMODO_MININGTHREADS == 0 )
                     {
-                        if ( KOMODO_MININGTHREADS == 0 ) // we are staking 
+                        // Rebuild block if the found solution for PoS meets POW target. This is an edge case in early chain, or if there is near 0 PoW hashrate.
+                        if ( ASSETCHAINS_STAKED < 100 && komodo_newStakerActive(Mining_height,pblock->nTime) != 0 && h < hashTarget_POW )
                         {
-                            // Need to rebuild block if the found solution for PoS, meets POW target, otherwise it will be rejected. 
-                            if ( ASSETCHAINS_STAKED < 100 && komodo_newStakerActive(Mining_height,pblock->nTime) != 0 && h < hashTarget_POW )
-                            {
-                                fprintf(stderr, "[%s:%d] PoS block.%u meets POW_Target.%u building new block\n", ASSETCHAINS_SYMBOL, Mining_height, h.GetCompact(), hashTarget_POW.GetCompact());
-                                return(false);
-                            }
-                            if ( komodo_waituntilelegible(pblock, chainActive.LastTip(), Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
-                                return(false);
+                            fprintf(stderr, "[%s:%d] PoS block.%u meets POW_Target.%u building new block\n", ASSETCHAINS_SYMBOL, Mining_height, h.GetCompact(), hashTarget_POW.GetCompact());
+                            return(false);
                         }
+                        if ( komodo_waituntilelegible(pblock, chainActive.LastTip(), Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
+                            return(false);
                         uint256 tmp = B.GetHash();
-                        fprintf(stderr,"[%s:%d] mined block ",ASSETCHAINS_SYMBOL,Mining_height);
+                        fprintf(stderr,"[%s:%d] staked block ",ASSETCHAINS_SYMBOL,Mining_height);
                         int32_t z; for (z=31; z>=0; z--)
                             fprintf(stderr,"%02x",((uint8_t *)&tmp)[z]);
                         fprintf(stderr, "\n");
