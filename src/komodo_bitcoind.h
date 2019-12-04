@@ -1468,7 +1468,9 @@ void komodo_segids(uint8_t *hashbuf,int32_t height,int32_t n)
         {
             blockone->segid = -3;
             firstblockseen++;
-            if ( ht >= 70 )
+            // line 4301 main.cpp : assert(view.Flush())
+            // possible assert fail under 100 blocks during initial sync. delaying the flush to disk appears to stop it, please try and break this! 
+            if ( ht >= 70 ) 
                 FlushStateToDisk();
         }
         else if ( ht >= 100 && blockone->segid != -3 ) // not syncing from block 1 so use old segid calcualtion by looking up every block from disk. 
