@@ -1473,7 +1473,7 @@ void komodo_segids(uint8_t *hashbuf,int32_t height,int32_t n)
             if ( ht >= 70 ) 
                 FlushStateToDisk();
         }
-        else if ( ht >= 100 && blockone->segid != -3 ) // not syncing from block 1 so use old segid calcualtion by looking up every block from disk. 
+        else if ( ht >= 100 && blockone->segid != -3 ) // not syncing from block 1 so use old segid calculation by looking up every block from disk. 
             firstblockseen--;
         fprintf(stderr, "ht.%i set firstblockseen to %i nocache.%i\n", ht, firstblockseen, (firstblockseen<0));
     }

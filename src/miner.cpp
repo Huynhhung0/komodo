@@ -128,8 +128,6 @@ void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, 
         pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
     else pblock->nTime = std::max((int64_t)(pindexPrev->nTime+1), GetAdjustedTime());
     
-    // saveTime should start at utxo elegible time, and only be increased here, 
-    // shouldnt matter because the block should be broadcast as soon as the elegible time passes. 
     if ( ASSETCHAINS_STAKED != 0 && saveTime > pblock->nTime )
     {
         fprintf(stderr, "increasing blocktime from %u to %u >>>>>>> ", pblock->nTime, saveTime);
@@ -181,11 +179,10 @@ int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_
         if ( delay <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
         {
             UpdateTime(pblock, Params().GetConsensus(), pindexPrev); 
-            if ( (rand() % 100) < 1 ) 
-                fprintf(stderr, "[%s:%i] entering PoW miner with %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
+            fprintf(stderr, "[%s:%i] entering PoW miner with %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
             break;
         }
-        else if ( (rand() % 100) < 2 ) 
+        else if ( (rand() % 100) < 1 ) 
             fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
         if ( chainActive.Height() >= stakeHeight )
         {
@@ -194,7 +191,7 @@ int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_
         }
         if( !GetBoolArg("-gen",false) ) 
             return(0);
-        sleep(1);
+        usleep(50000);
     }
     return(1);
 }
@@ -1759,11 +1756,6 @@ void static BitcoinMiner()
                 Mining_height = pindexPrev->GetHeight()+1;
                 Mining_start = (uint32_t)time(NULL);
             }
-            if ( ASSETCHAINS_SYMBOL[0] != 0 && ASSETCHAINS_STAKED == 0 )
-            {
-                //fprintf(stderr,"%s create new block ht.%d\n",ASSETCHAINS_SYMBOL,Mining_height);
-                //sleep(3);
-            }
 
 #ifdef ENABLE_WALLET
             // notaries always default to staking
@@ -1773,13 +1765,6 @@ void static BitcoinMiner()
 #endif
             if ( ptr == 0 )
             {
-                if ( 0 && !GetBoolArg("-gen",false))
-                {
-                    miningTimer.stop();
-                    c.disconnect();
-                    LogPrintf("KomodoMiner terminated\n");
-                    return;
-                }
                 static uint32_t counter;
                 if ( counter++ < 10 && ASSETCHAINS_STAKED == 0 )
                     fprintf(stderr,"created illegal blockB, retry\n");
@@ -1883,7 +1868,7 @@ void static BitcoinMiner()
                     {
                         HASHTarget = arith_uint256().SetCompact(KOMODO_MINDIFF_NBITS);
                         fprintf(stderr,"I am the chosen one for %s ht.%d\n",ASSETCHAINS_SYMBOL,pindexPrev->GetHeight()+1);
-                    } else fprintf(stderr,"duplicate at j.%d\n",j);
+                    } 
                 } else Mining_start = 0;
             } else Mining_start = 0;
 
@@ -1958,13 +1943,13 @@ void static BitcoinMiner()
                     }
                     if ( IS_KOMODO_NOTARY != 0 && B.nTime > GetAdjustedTime() )
                     {
-                        //fprintf(stderr,"need to wait %d seconds to submit block\n",(int32_t)(B.nTime - GetAdjustedTime()));
+                        fprintf(stderr,"need to wait %d seconds to submit block\n",(int32_t)(B.nTime - GetAdjustedTime()));
                         while ( GetAdjustedTime() < B.nTime-2 )
                         {
                             sleep(1);
                             if ( chainActive.Height() >= Mining_height )
                             {
-                                fprintf(stderr,"new block arrived\n");
+                                fprintf(stderr,"new block arrived %d seconds until our block elegible\n",(int32_t)(B.nTime - GetAdjustedTime()));
                                 return(false);
                             }
                         }
@@ -2151,7 +2136,7 @@ void static BitcoinMiner()
             miningTimer.stop();
             c.disconnect();
             LogPrintf("KomodoMiner terminated\n");
-            throw;
+            return; //throw; // test for crash on ctrl+c komodo daemon mining. 
         }
         catch (const std::runtime_error &e)
         {
