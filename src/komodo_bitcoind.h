@@ -1437,8 +1437,10 @@ int8_t komodo_segid(int32_t nocache,int32_t height)
                     {
                         segid = komodo_segid32(voutaddr) & 0x3f;
                         if ( firstblockseen < 0 && height > 1 )
+                        {
                             pindex->segid = segid;
-                        //fprintf(stderr,"komodo_segid.(%d) -> %d\n",height,pindex->segid);
+                            //fprintf(stderr,"komodo_segid.(%d) -> %d firstblockseen.%d\n",height,pindex->segid,firstblockseen);
+                        }
                     }
                 } //else fprintf(stderr,"komodo_segid ht.%d couldnt extract voutaddress\n",height);
             }
@@ -1446,7 +1448,10 @@ int8_t komodo_segid(int32_t nocache,int32_t height)
         // The new staker sets segid in komodo_checkPOW, this persists after restart by being saved in the blockindex for blocks past the HF timestamp. 
         // If we have not already set segid then set it here, this should never happen once the new staker is active.
         if ( firstblockseen > 0 && height > 1 && pindex->segid == -2 )
+        {
             pindex->segid = segid; 
+            //fprintf(stderr,"komodo_segid.(%d) -> %d firstblockseen.%d\n",height,pindex->segid,firstblockseen);
+        }
     }
     return(segid);
 }
@@ -1462,8 +1467,9 @@ void komodo_segids(uint8_t *hashbuf,int32_t height,int32_t n)
         else if ( ht < 100 ) // we can set the first block, sync will be much faster.
         {
             blockone->segid = -3;
-            FlushStateToDisk();
             firstblockseen++;
+            if ( ht >= 70 )
+                FlushStateToDisk();
         }
         else if ( ht >= 100 && blockone->segid != -3 ) // not syncing from block 1 so use old segid calcualtion by looking up every block from disk. 
             firstblockseen--;
