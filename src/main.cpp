@@ -1403,7 +1403,6 @@ bool CheckTransaction(uint32_t tiptime,const CTransaction& tx, CValidationState 
         }
     }
     
-    
     if ( ASSETCHAINS_STAKED != 0 && komodo_newStakerActive(0, tiptime) != 0 && tx.vout.size() == 2 && DecodeStakingOpRet(tx.vout[1].scriptPubKey, merkleroot) != 0 )
     {
         if ( numTxs == 0 || txIndex != numTxs-1 ) 
@@ -1434,14 +1433,14 @@ bool CheckTransaction(uint32_t tiptime,const CTransaction& tx, CValidationState 
 
 int32_t komodo_isnotaryvout(char *coinaddr,uint32_t tiptime) // from ac_private chains only
 {
+    if ( strcmp(coinaddr,CRYPTO777_KMDADDR) == 0 )
+        return(1);
     int32_t season = getacseason(tiptime);
     if ( NOTARY_ADDRESSES[season-1][0][0] == 0 )
     {
         uint8_t pubkeys[64][33];
         komodo_notaries(pubkeys,0,tiptime);
     }
-    if ( strcmp(coinaddr,CRYPTO777_KMDADDR) == 0 )
-        return(1);
     for (int32_t i = 0; i < NUM_KMD_NOTARIES; i++) 
     {
         if ( strcmp(coinaddr,NOTARY_ADDRESSES[season-1][i]) == 0 )
@@ -3768,7 +3767,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if ( ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 ) //ASSETCHAINS_OVERRIDE_PUBKEY33[0] != 0 &&
     {
         uint64_t checktoshis;
-        if ( (checktoshis= komodo_commission((CBlock *)&block,(int32_t)pindex->GetHeight(),(newStakerActive != 0 && pindex->segid >= 0)) != 0 )
+        if ( (checktoshis= komodo_commission((CBlock *)&block,(int32_t)pindex->GetHeight(),(newStakerActive != 0 && pindex->segid >= 0))) != 0 )
         {
             if ( block.vtx[0].vout.size() >= 2 && block.vtx[0].vout[1].nValue == checktoshis )
                 blockReward += checktoshis;
@@ -5117,7 +5116,7 @@ bool CheckBlockHeader(int32_t *futureblockp,int32_t height,CBlockIndex *pindex, 
     return true;
 }
 
-int32_t komodo_check_deposit(int32_t height,const CBlock& block,uint32_t prevtime);
+int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pindex);
 int32_t komodo_checkPOW(int64_t stakeTxValue,int32_t slowflag,CBlock *pblock,int32_t height);
 
 bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const CBlock& block, CValidationState& state,
@@ -5275,7 +5274,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     if (nSigOps > MAX_BLOCK_SIGOPS)
         return state.DoS(100, error("CheckBlock: out-of-bounds SigOpCount"),
                          REJECT_INVALID, "bad-blk-sigops", true);
-    if ( fCheckPOW && komodo_check_deposit(height,block,(pindex==0||pindex->pprev==0)?0:pindex->pprev->nTime) < 0 )
+    //if ( fCheckPOW && komodo_check_deposit(height,block,(pindex==0||pindex->pprev==0)?0:pindex->pprev->nTime) < 0 )
+    if ( fCheckPOW && komodo_check_deposit(height,block,pindex) < 0 )
     {
         //static uint32_t counter;
         //if ( counter++ < 100 && ASSETCHAINS_STAKED == 0 )
@@ -7166,7 +7166,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         uint64_t nNonce = 1;
         int nVersion;           // use temporary for version, don't set version number until validated as connected
         int minVersion = MIN_PEER_PROTO_VERSION;
-        if ( is_STAKED(ASSETCHAINS_SYMBOL) != 0 )
+        if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 )
             minVersion = STAKEDMIN_PEER_PROTO_VERSION;
         vRecv >> nVersion >> pfrom->nServices >> nTime >> addrMe;
         if (nVersion == 10300)

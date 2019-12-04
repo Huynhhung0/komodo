@@ -4,11 +4,6 @@
 
 #include "crosschain.h"
 #include "cc/CCinclude.h"
-/*
-    Leave min sigs as 7 for now...
-    See int32_t int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp) in notaries_staked.cpp
-    Simple as adding timestamp, number of pubkeys, and the pubkeys. 
-*/
 static const int32_t iguanaPort = 9333;
 static const int8_t BTCminsigs = 13;
 static const int8_t overrideMinSigs = 7;
@@ -24,16 +19,16 @@ static const char *iguanaSeeds[8][1] =
   {"149.28.246.230"},
 };
 
-static const int STAKED_ERA_GAP = 777;
+static const int LABS_ERA_GAP = 777;
 
-static const int NUM_STAKED_ERAS = 4;
+static const int NUM_LABS_ERAS = 4;
 // Set timestamp for notary change over in position 1: 
-static const int STAKED_NOTARIES_TIMESTAMP[NUM_STAKED_ERAS] = {1572523200, 1704244444, 1704244444, 1704244444}; // Oct 31 noon UTC
+static const int LABS_NOTARIES_TIMESTAMP[NUM_LABS_ERAS] = {1572523200, 1704244444, 1704244444, 1704244444}; // Oct 31 noon UTC
 // Set the number of keys in position 2:
-static const int32_t num_notaries_STAKED[NUM_STAKED_ERAS] = { 22, 24, 1, 1 };
+static const int32_t num_notaries_LABS[NUM_LABS_ERAS] = { 22, 24, 1, 1 };
 
 // Place the second era pubkeys in position 2, DO NOT TOUCH era one keys!: 
-static const char *notaries_STAKED[NUM_STAKED_ERAS][64][2] =
+static const char *notaries_LABS[NUM_LABS_ERAS][64][2] =
 {
     {
         {"blackjok3r", "035fc678bf796ad52f69e1f5759be54ec671c559a22adf27eed067e0ddf1531574" }, // RTcYRJ6WopYkUqcmksyjxoV1CueYyqxFuk    right
@@ -93,13 +88,13 @@ static const char *notaries_STAKED[NUM_STAKED_ERAS][64][2] =
     }
 };
 
-int8_t is_STAKED(const char *chain_name);
-int32_t STAKED_era(int timestamp);
-int8_t numStakedNotaries(uint8_t pubkeys[64][33],int8_t era);
-int8_t StakedNotaryID(std::string &notaryname, char *Raddress);
-void UpdateNotaryAddrs(uint8_t pubkeys[64][33],int8_t numNotaries);
+int8_t is_LABSCHAIN(const char *chain_name);
+int32_t get_LABS_ERA(int timestamp);
+int8_t num_LABSNotaries(uint8_t pubkeys[64][33],int8_t era);
+int8_t LABS_NotaryID(std::string &notaryname, char *Raddress);
+void UpdateLABSNotaryAddrs(uint8_t pubkeys[64][33],int8_t numNotaries);
 int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp);
 
-CrosschainAuthority Choose_auth_STAKED(int32_t chosen_era);
+CrosschainAuthority Choose_Crosschain_auth(int32_t chosen_era);
 
 #endif

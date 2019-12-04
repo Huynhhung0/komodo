@@ -1663,7 +1663,7 @@ uint64_t komodo_ac_block_subsidy(int nHeight)
         else
             subsidy += ASSETCHAINS_SUPPLY * SATOSHIDEN + magicExtra;
     }
-    else if ( is_STAKED(ASSETCHAINS_SYMBOL) == 2 )
+    else if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 2 )
         return(0);
     // LABS fungible chains, cannot have any block reward!
     return(subsidy);
@@ -1701,7 +1701,7 @@ void komodo_args(char *argv0)
     FILE *fp; uint64_t val; uint16_t port; int32_t i,nonz=0,baseid,len,n,extralen = 0; uint64_t ccenables[256], ccEnablesHeight[512] = {0}; CTransaction earlytx; uint256 hashBlock;
 
     IS_KOMODO_NOTARY = GetBoolArg("-notary", false);
-    IS_STAKED_NOTARY = GetArg("-stakednotary", -1);
+    IS_LABS_NOTARY = GetArg("-stakednotary", -1);
     KOMODO_NSPV = GetArg("-nSPV",0);
     memset(ccenables,0,sizeof(ccenables));
     memset(disablebits,0,sizeof(disablebits));
@@ -1733,15 +1733,15 @@ void komodo_args(char *argv0)
                     IS_KOMODO_NOTARY = 1;
                     KOMODO_MININGTHREADS = 1;
                     mapArgs ["-genproclimit"] = itostr(KOMODO_MININGTHREADS);
-                    IS_STAKED_NOTARY = -1;
+                    IS_LABS_NOTARY = -1;
                     fprintf(stderr,"running as notary.%d %s\n",i,notaries_elected[kmd_season-1][i][0]);
                     break;
                 }
             }
         }
     }
-    if ( IS_STAKED_NOTARY != -1 && IS_KOMODO_NOTARY == true ) {
-        fprintf(stderr, "Cannot be STAKED and KMD notary at the same time!\n");
+    if ( IS_LABS_NOTARY != -1 && IS_KOMODO_NOTARY == true ) {
+        fprintf(stderr, "Cannot be LABS and KMD notary at the same time!\n");
         StartShutdown();
     }
 	name = GetArg("-ac_name","");
@@ -2277,7 +2277,7 @@ fprintf(stderr,"extralen.%d before disable bits\n",extralen);
 
             if (ASSETCHAINS_CBMATURITY != 0)
                 COINBASE_MATURITY = ASSETCHAINS_CBMATURITY;
-            else if (ASSETCHAINS_LASTERA == 0 || is_STAKED(ASSETCHAINS_SYMBOL) != 0)
+            else if (ASSETCHAINS_LASTERA == 0 || is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0)
                 COINBASE_MATURITY = 1;
             if (COINBASE_MATURITY < 1)
             {

@@ -1305,7 +1305,7 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstake
 {
     static bool didinit = false,ishush3 = false;
     // LABS fungible chains, cannot have any block reward!
-    if ( is_STAKED(ASSETCHAINS_SYMBOL) == 2 )
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 2 )
         return(0);
 
     if (!didinit) {
@@ -1371,10 +1371,16 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstake
             for (j=0; j<n; j++)
             {
                 /* 
-                  The following was for OUR. At the hard fork, we should use the return from komodo_checkPOW to determine accurately
-                  which transactions are valid staking txns, and exempt those tx from commission calculations rather than exempt the last tx in every block above height 225000! 
-                  skipstaketx = 0; // to disable this change. 
+                    For LABS chains only until tested.
+                    The 225000 exemption was/is for OUR, we can determine if a block is PoS/PoW 100% reliably after the hardfork due to the blockindex changes. 
+                    This change prevents every PoW block losing the last transaction's commission, while not inflating the supply simply by staking blocks. 
                 */
+                skipstaketx = is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 ? skipstaketx : 0;
+                if ( skipstaketx < 0 )
+                {
+                    fprintf(stderr, "komodo_commission: no pindex or pindex->segid set from komodo_check_deposit try to set it here?\n");
+                    KOMODO_STOPAT = height+20; // temporary, should never enter this if. 
+                }
                 if ( txn_count > 1 && i == txn_count-1 && ASSETCHAINS_STAKED != 0 && j == n-1 && (skipstaketx != 0 || (skipstaketx == 0 && height > 225000)) )
                     break;
                 //fprintf(stderr,"(%d %.8f).%d ",i,dstr(pblock->vtx[i].vout[j].nValue),j);
@@ -2490,19 +2496,15 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                     return(-1);
             }
         }
-        else
+        else if ( (ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) )
         {
             if ( komodo_checkcommission(pblock,height,(newStakerActive != 0 && is_PoSblock != 0)) < 0 )
                 return(-1);
         }
     }
-    // Consensus rule to force miners to mine the notary coinbase payment happens in ConnectBlock 
-    // the default daemon miner, checks the actual vins so the only way this will fail, is if someone changes the miner, 
-    // and then creates txs to the crypto address meeting min sigs and puts it in tx position 1.
-    // If they go through this effort, the block will still fail at connect block, and will be auto purged by the temp file fix.   
     if ( failed == 0 && slowflag == 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx.size() > 1 )
     {
-        int32_t mincbvouts = 1 + ((ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) && (ASSETCHAINS_FOUNDERS == 1 || (ASSETCHAINS_FOUNDERS > 1 && pindex->GetHeight() % ASSETCHAINS_FOUNDERS == 0)) + (ASSETCHAINS_CBOPRET != 0 && block.vtx[0].vout.back().scriptPubKey.IsOpReturn()));
+        int32_t mincbvouts = 1 + ((ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) && (ASSETCHAINS_FOUNDERS == 1 || (ASSETCHAINS_FOUNDERS > 1 && height % ASSETCHAINS_FOUNDERS == 0)) + (ASSETCHAINS_CBOPRET != 0 && pblock->vtx[0].vout.back().scriptPubKey.IsOpReturn()));
         // We check the full validation in ConnectBlock directly to get the amount for coinbase. So just approx here.
         if ( pblock->vtx[0].vout.size() > mincbvouts )
         {
@@ -2512,7 +2514,7 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                 fprintf(stderr, "ht.%i notarisation is not to crypto address\n",height);
                 return(-1); 
             }
-            // Check min sigs, dont really need this check, but is is cheap. 
+            // Check min sigs, cheap sanity check. 
             int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0}; int32_t vins;
             numSN = komodo_notaries(notarypubkeys, height, pblock->nTime);
             if ( (vins= pblock->vtx[1].vin.size()) < LABSMINSIGS(numSN,pblock->nTime) )

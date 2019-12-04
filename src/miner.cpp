@@ -175,20 +175,21 @@ CScript komodo_makeopret(CBlock *pblock, bool fNew);
 
 int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_t stakeHeight, uint32_t delay)
 {
-    while ( (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) > (int64_t)GetAdjustedTime() ) // (int64_t)GetAdjustedTime() )
+    while ( (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) > (int64_t)GetAdjustedTime() )
     {
-        int64_t secToElegible = (int64_t)(blocktime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime());
-        if ( delay <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF ) 
+        int64_t secToElegible = (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime());
+        if ( delay <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
         {
-            UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev); 
-            fprintf(stderr, "entering PoW miner ... \n");
+            UpdateTime(pblock, Params().GetConsensus(), pindexPrev); 
+            if ( (rand() % 100) < 1 ) 
+                fprintf(stderr, "[%s:%i] entering PoW miner with %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
             break;
         }
-        if ( (rand() % 100) < 2-(secToElegible>ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) ) 
+        else if ( (rand() % 100) < 2 ) 
             fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
         if ( chainActive.Height() >= stakeHeight )
         {
-            fprintf(stderr, "[%s:%i] Chain advanced, creating new block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
+            fprintf(stderr, "[%s:%i] Chain tip advanced, creating new PoS block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
             return(0);
         }
         if( !GetBoolArg("-gen",false) ) 
@@ -664,7 +665,7 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                     nFees += utxovalue;
                 //fprintf(stderr, "added to coinbase.%llu staking tx valueout.%llu\n", (long long unsigned)utxovalue, (long long unsigned)txStaked.vout[0].nValue);
                 uint32_t delay = ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH ? ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX : ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF;
-                if ( komodo_waituntilelegible(blocktime, stakeHeight, delay) == 0 )
+                if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, delay) == 0 )
                     return(0);
             }
 
@@ -1876,7 +1877,7 @@ void static BitcoinMiner()
                                 break;
                         if ( j == 65 )
                             KOMODO_LASTMINED = 0;
-                    } else fprintf(stderr,"ht.%i all NN are elegible\n",Mining_height); //else fprintf(stderr,"no nonz pubkeys\n"); 
+                    } else fprintf(stderr,"ht.%i all NN are elegible\n",Mining_height); 
                     
                     if ( (Mining_height >= 235300 && Mining_height < 236000) || (j == 65 && Mining_height > KOMODO_MAYBEMINED+1 && Mining_height > KOMODO_LASTMINED+64) )
                     {
@@ -1987,7 +1988,7 @@ void static BitcoinMiner()
                                 fprintf(stderr, "[%s:%d] PoS block.%u meets POW_Target.%u building new block\n", ASSETCHAINS_SYMBOL, Mining_height, h.GetCompact(), hashTarget_POW.GetCompact());
                                 return(false);
                             }
-                            if ( komodo_waituntilelegible(B.nTime, Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
+                            if ( komodo_waituntilelegible(pblock, chainActive.LastTip(), Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
                                 return(false);
                         }
                         uint256 tmp = B.GetHash();
@@ -1999,7 +2000,7 @@ void static BitcoinMiner()
                     CValidationState state;
                     if ( !TestBlockValidity(state,B, chainActive.LastTip(), true, false))
                     {
-                        h = UintToArith256(B.GetHash());
+                        //h = UintToArith256(B.GetHash());
                         //for (z=31; z>=0; z--)
                         //    fprintf(stderr,"%02x",((uint8_t *)&h)[z]);
                         //fprintf(stderr," Invalid block mined, try again\n");

@@ -5999,7 +5999,7 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
                 {
                     result.push_back(Pair("ismine", "true"));
                     std::string notaryname;
-                    if ( (IS_STAKED_NOTARY= StakedNotaryID(notaryname, Raddress)) > -1 ) 
+                    if ( (IS_LABS_NOTARY= LABS_NotaryID(notaryname, Raddress)) > -1 ) 
                     {
                         result.push_back(Pair("IsNotary", notaryname));
                         IS_KOMODO_NOTARY = 0;
