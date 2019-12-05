@@ -1132,7 +1132,15 @@ UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk
     }
     else
     {
-        int32_t perc = params[0].get_int();
+        int32_t perc;
+        try {
+            perc = params[0].get_int();
+        }
+        catch (const std::runtime_error &e){
+            std::string strperc = params[0].get_str();
+            perc = std::stoi(strperc);
+        }
+        
         if ( perc >= 0 && perc <= 100 ) 
         {
             ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
