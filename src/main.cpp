@@ -467,15 +467,14 @@ namespace {
         CNodeState *state = State(nodeid);
         assert(state != NULL);
 
-        /*ProcessBlockAvailability(nodeid);
+        ProcessBlockAvailability(nodeid);
 
-         BlockMap::iterator it = mapBlockIndex.find(hash);
-         if (it != mapBlockIndex.end() && it->second->nChainWork > 0) {
-         // An actually better block was announced.
-         if (state->pindexBestKnownBlock == NULL || it->second->nChainWork >= state->pindexBestKnownBlock->nChainWork)
-         state->pindexBestKnownBlock = it->second;
-         } else*/
-        {
+        BlockMap::iterator it = mapBlockIndex.find(hash);
+        if (it != mapBlockIndex.end() && it->second->chainPower > 0) {
+            // An actually better block was announced.
+            if (state->pindexBestKnownBlock == NULL || it->second->chainPower >= state->pindexBestKnownBlock->chainPower)
+                state->pindexBestKnownBlock = it->second;
+        } else {
             // An unknown block was announced; just assume that the latest one is the best one.
             state->hashLastUnknownBlock = hash;
         }
