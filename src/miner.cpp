@@ -123,16 +123,9 @@ public:
 
 void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
-    uint32_t saveTime = pblock->nTime;
     if ( ASSETCHAINS_ADAPTIVEPOW <= 0 )
         pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
     else pblock->nTime = std::max((int64_t)(pindexPrev->nTime+1), GetAdjustedTime());
-    
-    if ( ASSETCHAINS_STAKED != 0 && saveTime > pblock->nTime )
-    {
-        fprintf(stderr, "increasing blocktime from %u to %u >>>>>>> ", pblock->nTime, saveTime);
-        pblock->nTime = saveTime;
-    }
     
     // Updating time can change work required on testnet:
     if (ASSETCHAINS_ADAPTIVEPOW > 0 || consensusParams.nPowAllowMinDifficultyBlocksAfterHeight != boost::none)
@@ -171,27 +164,26 @@ CScript komodo_mineropret(int32_t nHeight);
 bool komodo_appendACscriptpub();
 CScript komodo_makeopret(CBlock *pblock, bool fNew);
 
-int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_t stakeHeight, uint32_t delay)
+int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_t stakeHeight, int32_t delay)
 {
-    while ( (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) > (int64_t)GetAdjustedTime() )
+    int32_t secToElegible;
+    while ( (secToElegible= pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime()) > 0 )
     {
-        int64_t secToElegible = (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime());
-        if ( delay <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
+        if ( delay == ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
         {
-            UpdateTime(pblock, Params().GetConsensus(), pindexPrev); 
-            fprintf(stderr, "[%s:%i] entering PoW miner with %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
+            fprintf(stderr, "[%s:%i] starting PoW with %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
             break;
         }
-        else if ( (rand() % 100) < 1 ) 
-            fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
         if ( chainActive.Height() >= stakeHeight )
         {
-            fprintf(stderr, "[%s:%i] Chain tip advanced, creating new PoS block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
+            fprintf(stderr, "[%s:%i] block arrived, building new block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
             return(0);
         }
         if( !GetBoolArg("-gen",false) ) 
             return(0);
-        usleep(50000);
+        if ( (rand() % 100) < 2 ) 
+            fprintf(stderr, "[%s:%i] waiting %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
+        usleep(500000);
     }
     return(1);
 }
@@ -637,7 +629,7 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             }
             else
             {
-                blocktime = GetAdjustedTime();                
+                blocktime = GetAdjustedTime();
                 uint256 merkleroot = komodo_calcmerkleroot(pblock, pindexPrev->GetBlockHash(), nHeight, true, scriptPubKeyIn);
                 //fprintf(stderr, "MINER: merkleroot.%s\n", merkleroot.GetHex().c_str());
                 /*
@@ -658,11 +650,11 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                 }
                  
                 siglen = komodo_staked(txStaked, pblock->nBits, &blocktime, &txtime, &utxotxid, &utxovout, &utxovalue, utxosig, merkleroot);
-                if ( (newStakerActive= komodo_newStakerActive(nHeight, blocktime)) != 0 )
+                pblock->nTime = blocktime;
+                if ( (newStakerActive= komodo_newStakerActive(nHeight, pblock->nTime)) != 0 )
                     nFees += utxovalue;
                 //fprintf(stderr, "added to coinbase.%llu staking tx valueout.%llu\n", (long long unsigned)utxovalue, (long long unsigned)txStaked.vout[0].nValue);
-                uint32_t delay = ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH ? ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX : ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF;
-                if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, delay) == 0 )
+                if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF) == 0 )
                     return(0);
             }
 
@@ -676,7 +668,6 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                 pblocktemplate->vTxFees.push_back(txfees);
                 pblocktemplate->vTxSigOps.push_back(GetLegacySigOpCount(txStaked));
                 nFees += txfees;
-                pblock->nTime = blocktime;
                 //printf("staking PoS ht.%d t%u lag.%u\n",(int32_t)chainActive.LastTip()->GetHeight()+1,blocktime,(uint32_t)(GetAdjustedTime() - (blocktime-13)));
             } else return(0); //fprintf(stderr,"no utxos eligible for staking\n");         
         }
