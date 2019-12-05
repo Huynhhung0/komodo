@@ -2118,7 +2118,7 @@ bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int8_t &numNN, const
     return true;
 }
 
-uint64_t komodo_checknotarypay(CBlock *pblock,int32_t height,int32_t numcbvouts)
+uint64_t komodo_checknotarypay(CBlock *pblock,int32_t height)
 {
     std::vector<int8_t> NotarisationNotaries; uint8_t *script; int32_t scriptlen;
     uint64_t timestamp = pblock->nTime;
@@ -2163,24 +2163,20 @@ uint64_t komodo_checknotarypay(CBlock *pblock,int32_t height,int32_t numcbvouts)
         return(0);
     }
     
-    int8_t n = 0, i = 0, matches = 0;
+    int8_t matches = 0;
+    int32_t numvouts = pblock->vtx[0].vout.size()-pblock->vtx[0].vout.back().scriptPubKey.IsOpReturn()-1;
     uint64_t total = 0, AmountToPay = 0;
     
     // get the pay amount from the created tx.
     AmountToPay = txNew.vout[1].nValue;
-    
-    // Check the created coinbase pays the correct notaries. 
-    BOOST_FOREACH(const CTxOut& txout, pblock->vtx[0].vout)
+    // Check the created coinbase pays the correct notaries
+    for ( int32_t n=numvouts; n > numvouts-NotarisationNotaries.size(); n-- )
     {
-        // skip the coinbase paid to the miner, commission vout and OP_RETURN if it exists.
-        if ( n < numcbvouts || txout.scriptPubKey.IsOpReturn() )
-        {
-            n++;
-            continue;
-        }
+        const CTxOut& txout = pblock->vtx[0].vout[n];
         // Check the pubkeys match the pubkeys in the notarisation.
         script = (uint8_t *)&txout.scriptPubKey[0];
         scriptlen = (int32_t)txout.scriptPubKey.size();
+        int32_t flag = 0;
         if ( scriptlen == 35 && script[0] == 33 && script[34] == OP_CHECKSIG && memcmp(script+1,notarypubkeys[NotarisationNotaries[n-1]],33) == 0 )
         {
             // check the value is correct
@@ -2189,10 +2185,9 @@ uint64_t komodo_checknotarypay(CBlock *pblock,int32_t height,int32_t numcbvouts)
                 matches++;
                 total += txout.nValue;
                 //fprintf(stderr, "MATCHED AmountPaid.%lu notaryid.%i\n",AmountToPay,NotarisationNotaries[n-1]);
-            }
-            else fprintf(stderr, "NOT MATCHED AmountPaid.%llu AmountToPay.%llu notaryid.%i\n", (long long)pblock->vtx[0].vout[n].nValue, (long long)AmountToPay, NotarisationNotaries[n-1]);
-        }
-        n++;
+            } else flag++;
+        } else flag ++;
+        if (flag != 0 ) fprintf(stderr, "NOT MATCHED notaryid.%i\n", NotarisationNotaries[n-1]);
     }
     if ( matches != 0 && matches == NotarisationNotaries.size() && totalsats == total )
     {
@@ -2512,9 +2507,11 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
     }
     if ( failed == 0 && slowflag == 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx.size() > 1 )
     {
-        int32_t mincbvouts = 1 + ((ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) && (ASSETCHAINS_FOUNDERS == 1 || (ASSETCHAINS_FOUNDERS > 1 && height % ASSETCHAINS_FOUNDERS == 0)) + (ASSETCHAINS_CBOPRET != 0 && pblock->vtx[0].vout.back().scriptPubKey.IsOpReturn()));
-        // We check the full validation in ConnectBlock directly to get the amount for coinbase. So just approx here.
-        if ( pblock->vtx[0].vout.size() > mincbvouts )
+        // check vouts in coinabse is over minsigs, and cheaply check that the first tx is a notarization. 
+        uint8_t notarypubkeys[64][33];
+        int8_t numNN = komodo_notaries(notarypubkeys, height, pblock->nTime);
+        int32_t minsigs = LABSMINSIGS(numNN,pblock->nTime);
+        if ( pblock->vtx[0].vout.size() > minsigs )
         {
             // Check the notarisation tx is to the crypto address.
             if ( !komodo_is_notarytx(pblock->vtx[1]) == 1 )
@@ -2522,18 +2519,14 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                 fprintf(stderr, "ht.%i notarisation is not to crypto address\n",height);
                 return(-1); 
             }
-            // Check min sigs, cheap sanity check. 
-            int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0}; int32_t vins;
-            numSN = komodo_notaries(notarypubkeys, height, pblock->nTime);
-            if ( (vins= pblock->vtx[1].vin.size()) < LABSMINSIGS(numSN,pblock->nTime) )
+            if ( pblock->vtx[1].vin.size() < minsigs )
             {
-                fprintf(stderr, "ht.%i does not meet minsigs.%i sigs.%lld\n",height,LABSMINSIGS(numSN,pblock->nTime),(long long)pblock->vtx[1].vin.size());
+                fprintf(stderr, "ht.%i does not meet minsigs.%i sigs.%lld\n",height,minsigs,(long long)pblock->vtx[1].vin.size());
                 return(-1);
-            }
-            // check the amount of notaries notarizing matches the number of notaries paid. 
-            if ( pblock->vtx[0].vout.size() != vins+mincbvouts )
+            } 
+            if ( !pblock->vtx[1].vout.back().scriptPubKey.IsOpReturn() ) 
             {
-                fprintf(stderr, "ht.%i notarization_vins.%lld != notarypay_vouts.%lld mincbvouts.%i\n",height,(long long)pblock->vtx[1].vin.size(),(long long)pblock->vtx[0].vout.size(),mincbvouts);
+                fprintf(stderr, "ht.%i notarization tx has no opreturn\n",height);
                 return(-1);
             }
         }

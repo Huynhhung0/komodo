@@ -3472,13 +3472,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         // if notaries create a notarisation even if its not in this chain it will need to be mined inside its own block! 
         if ( notarisationTx == 1 )
         {
-            // valid notarization, so we must have more than the default number of coinbase vouts. The notary pay vouts will lie between other coinbase modifiers and the opreturn if it exists. 
-            int32_t numcbvouts = 1 + ((ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) && (ASSETCHAINS_FOUNDERS == 1 || (ASSETCHAINS_FOUNDERS > 1 && pindex->GetHeight() % ASSETCHAINS_FOUNDERS == 0)));
-            if ( block.vtx[0].vout.size() <= numcbvouts + (ASSETCHAINS_CBOPRET != 0 && block.vtx[0].vout.back().scriptPubKey.IsOpReturn()) )
-                return state.DoS(100, error("ConnectBlock(): 0 notarypay vouts in coinbase!"),
-                                REJECT_INVALID, "bad-cb-amount");
             // calculate the notaries compensation and validate correct values and pubkeys are paid. 
-            if ( (notarypaycheque= komodo_checknotarypay((CBlock *)&block,(int32_t)pindex->GetHeight(),numcbvouts)) > 0 )
+            if ( (notarypaycheque= komodo_checknotarypay((CBlock *)&block,(int32_t)pindex->GetHeight())) > 0 )
                 blockReward += notarypaycheque;
             else
                 return state.DoS(100, error("ConnectBlock(): Notary pay validation failed!"),

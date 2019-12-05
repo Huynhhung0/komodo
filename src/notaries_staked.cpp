@@ -130,6 +130,8 @@ int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp)
         This will need some kind of height or timestamp activation to work properly! 
         Leaving min sigs at 7 for now is the safest,
     */
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 0 )
+        return(numSN/5);
     int32_t minsigs;
     if (numSN/5 > overrideMinSigs )
         minsigs = (numSN / 5) + 1;
