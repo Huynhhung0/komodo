@@ -643,15 +643,35 @@ void *chainparams_commandline()
             }
             pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = ASSETCHAINS_SAPLING;
             pCurrentParams->consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = ASSETCHAINS_OVERWINTER;
-            checkpointData = //(Checkpoints::CCheckpointData)
-                    {
-                            boost::assign::map_list_of
-                                    (0, pCurrentParams->consensus.hashGenesisBlock),
-                            (int64_t)1231006505,
-                            (int64_t)1,
-                            (double)2777            // * estimated number of transactions per day after checkpoint
-                            //   total number of tx / (checkpoint block height / (24 * 24))
-                    };
+            if ( (strcmp(ASSETCHAINS_SYMBOL, "LABS") == 0) )
+            {
+                checkpointData = 
+                        {
+                                boost::assign::map_list_of
+                                        (0, pCurrentParams->consensus.hashGenesisBlock)
+                                        (7777, uint256S("0x01cb5beb84b3776d4ea4058e73a663317a560a7e34c767fcfccac3e3062fb97c"))
+                                        (77777, uint256S("0x03f122f0df7cdb9293bf3cb9c3528d3bf079f4927375c215885f2518c3cbccc6"))
+                                        (177777, uint256S("0x00000100fe6aa2d7a872f72a6112563104b41c7c869a1a2a654e388275caeb59"))
+                                        (250000, uint256S("0x05c365e26ce6ad6f5de8811d3175d33f0298eb7ec1ecef31c0cbd93e0fce6f0a")),
+                                (int64_t)1574498292,    // * UNIX timestamp of last checkpoint block
+                                (int64_t)524509,         // * total number of transactions between genesis and last checkpoint
+                                //   (the tx=... number in the SetBestChain debug.log lines)
+                                (double)1208            // * estimated number of transactions per day after checkpoint
+                                //   total number of tx / (checkpoint block height / (24 * 24))
+                        };
+            }
+            else 
+            {
+                checkpointData = //(Checkpoints::CCheckpointData)
+                {
+                        boost::assign::map_list_of
+                                (0, pCurrentParams->consensus.hashGenesisBlock),
+                        (int64_t)1231006505,
+                        (int64_t)1,
+                        (double)2777            // * estimated number of transactions per day after checkpoint
+                        //   total number of tx / (checkpoint block height / (24 * 24))
+                };
+            }
         }
     }
     else
@@ -704,6 +724,6 @@ void *chainparams_commandline()
 
     pCurrentParams->SetCheckpointData(checkpointData);
 
-    ASSETCHAIN_INIT = 1;
+    ASSETCHAIN_INIT = GetTime();
     return(0);
 }

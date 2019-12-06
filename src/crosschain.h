@@ -20,7 +20,7 @@
 
 const int CROSSCHAIN_KOMODO = 1;
 const int CROSSCHAIN_TXSCL = 2;
-const int CROSSCHAIN_STAKED = 3;
+const int CROSSCHAIN_LABS = 3;
 
 typedef struct CrosschainAuthority {
     uint8_t notaries[64][33];

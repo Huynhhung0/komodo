@@ -5999,7 +5999,7 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
                 {
                     result.push_back(Pair("ismine", "true"));
                     std::string notaryname;
-                    if ( (IS_STAKED_NOTARY= StakedNotaryID(notaryname, Raddress)) > -1 ) 
+                    if ( (IS_LABS_NOTARY= LABS_NotaryID(notaryname, Raddress)) > -1 ) 
                     {
                         result.push_back(Pair("IsNotary", notaryname));
                         IS_KOMODO_NOTARY = 0;
@@ -6029,51 +6029,6 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("address", NOTARY_ADDRESS));
         result.push_back(Pair("pubkey", NOTARY_PUBKEY));
-    }
-    return result;
-}
-
-UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk)
-{
-    UniValue result(UniValue::VOBJ);
-    if ( fHelp || params.size() > 1 )
-        throw runtime_error(
-        "setstakingsplit\n"
-        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase.\n"
-        "\nArguments:\n"
-        "1. \"split_percentage\"         (numeric) split ratio range 0-100.\n"
-        "\nResult:\n"
-        "  {\n"
-        "    \"split_percentage\" : \"split_percentage\"     (numeric) range 0-100\n"
-        "  }\n"
-        "\nExamples:\n"
-        + HelpExampleCli("setstakingsplit", "0")
-        + HelpExampleRpc("setstakingsplit", "100")
-    );
-    
-    LOCK(cs_main);
-    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) != 1 ) 
-    {
-        throw runtime_error("New PoS64 staker not active yet\n");
-    }
-    if ( params.size() == 0 )
-    {
-        result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
-    }
-    else
-    {
-        std::string strperc = params[0].get_str();
-        int32_t perc = std::stoi(strperc);
-        if ( perc >= 0 && perc <= 100 ) 
-        {
-            
-            ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
-            result.push_back(Pair("split_percentage", perc));
-        }
-        else 
-        {
-            throw runtime_error("must be between 0 and 100 inclusive.\n");
-        }
     }
     return result;
 }
@@ -8361,8 +8316,8 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 	const CKeyStore& keystore = *pwalletMain;
 	LOCK2(cs_main, pwalletMain->cs_wallet);
-
-	if (params.size() == 6)	// tokens in satoshis:
+    
+    if (params.size() == 6)	// tokens in satoshis:
 		amount = atoll(params[0].get_str().c_str());
     	else { // coins:
         	amount = 0;   
@@ -8374,7 +8329,7 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 		result.push_back(Pair("error", "incorrect amount"));
 		return result;
 	}
-
+	
 	name = params[1].get_str();
 
 	pubkey = ParseHex(params[2].get_str().c_str());

@@ -51,7 +51,7 @@ using namespace std;
 #include "komodo_defs.h"
 
 extern int32_t ASSETCHAINS_FOUNDERS;
-uint64_t komodo_commission(const CBlock *pblock,int32_t height);
+uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstaketx);
 int32_t komodo_blockload(CBlock& block,CBlockIndex *pindex);
 arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc,int32_t newStakerActive);
 int32_t komodo_newStakerActive(int32_t height, uint32_t timestamp);
@@ -1090,19 +1090,69 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp, const CPubKey& mypk
                 CBlockIndex* pblockIndex = chainActive[nHeight];
                 CBlock block;
                 if ( komodo_blockload(block, pblockIndex) == 0 )
-                    nFoundersReward = komodo_commission(&block, nHeight);
+                    nFoundersReward = komodo_commission(&block, nHeight, (komodo_newStakerActive(nHeight,pblockIndex->GetBlockTime()) != 0 && pblockIndex->segid >= 0));
             }
         }
         else if ( ASSETCHAINS_FOUNDERS != 0 )
         {
-            // Assetchains founders chains have a fixed reward so can be calculated at any given height.
-            nFoundersReward = komodo_commission(0, nHeight);
+            // Assetchains founders reward is calcualted directly from block height.
+            nFoundersReward = komodo_commission(0, nHeight, 0);
         }
         result.push_back(Pair("ac_pubkey", ValueFromAmount(nFoundersReward)));
     }
     return result;
 }
 
+UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    UniValue result(UniValue::VOBJ);
+    if ( fHelp || params.size() > 1 )
+        throw runtime_error(
+        "setstakingsplit\n"
+        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase.\n"
+        "\nArguments:\n"
+        "1. \"split_percentage\"         (numeric) split ratio range 0-100.\n"
+        "\nResult:\n"
+        "  {\n"
+        "    \"split_percentage\" : \"split_percentage\"     (numeric) range 0-100\n"
+        "  }\n"
+        "\nExamples:\n"
+        + HelpExampleCli("setstakingsplit", "0")
+        + HelpExampleRpc("setstakingsplit", "100")
+    );
+    
+    LOCK(cs_main);
+    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) != 1 ) 
+    {
+        throw runtime_error("New PoS64 staker not active yet\n");
+    }
+    if ( params.size() == 0 )
+    {
+        result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
+    }
+    else
+    {
+        int32_t perc;
+        try {
+            perc = params[0].get_int();
+        }
+        catch (...) {
+            std::string strperc = params[0].get_str();
+            perc = std::stoi(strperc);
+        }
+        
+        if ( perc >= 0 && perc <= 100 ) 
+        {
+            ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
+            result.push_back(Pair("split_percentage", perc));
+        }
+        else 
+        {
+            throw runtime_error("must be between 0 and 100 inclusive.\n");
+        }
+    }
+    return result;
+}
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
@@ -1117,6 +1167,7 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocksubsidy",        &getblocksubsidy,        true  },
 
 #ifdef ENABLE_MINING
+    { "generating",         "setstakingsplit",        &setstakingsplit,        true  },
     { "generating",         "getgenerate",            &getgenerate,            true  },
     { "generating",         "setgenerate",            &setgenerate,            true  },
     { "generating",         "generate",               &generate,               true  },

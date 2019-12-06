@@ -1301,11 +1301,11 @@ int32_t komodo_validate_interest(const CTransaction &tx,int32_t txheight,uint32_
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
-uint64_t komodo_commission(const CBlock *pblock,int32_t height)
+uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstaketx)
 {
     static bool didinit = false,ishush3 = false;
     // LABS fungible chains, cannot have any block reward!
-    if ( is_STAKED(ASSETCHAINS_SYMBOL) == 2 )
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 2 )
         return(0);
 
     if (!didinit) {
@@ -1370,7 +1370,18 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height)
             n = pblock->vtx[i].vout.size();
             for (j=0; j<n; j++)
             {
-                if ( height > 225000 && ASSETCHAINS_STAKED != 0 && txn_count > 1 && i == txn_count-1 && j == n-1 )
+                /* 
+                    For LABS chains only until tested.
+                    The 225000 exemption was/is for OUR, we can determine if a block is PoS/PoW 100% reliably after the hardfork due to the blockindex changes. 
+                    This change prevents every PoW block losing the last transaction's commission, while not inflating the supply simply by staking blocks. 
+                */
+                skipstaketx = is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 ? skipstaketx : 0;
+                if ( skipstaketx < 0 )
+                {
+                    fprintf(stderr, "komodo_commission: no pindex or pindex->segid set from komodo_check_deposit try to set it here?\n");
+                    KOMODO_STOPAT = height+20; // temporary, should never enter this if. 
+                }
+                if ( txn_count > 1 && i == txn_count-1 && ASSETCHAINS_STAKED != 0 && j == n-1 && (skipstaketx != 0 || (skipstaketx == 0 && height > 225000)) )
                     break;
                 //fprintf(stderr,"(%d %.8f).%d ",i,dstr(pblock->vtx[i].vout[j].nValue),j);
                 if ( i != 0 || j != 1 )
@@ -1391,6 +1402,7 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height)
     return(commission);
 }
 
+// global flag to detect old and new blockindex formats, saves needing a reindex to use new efficiency gains.
 static int32_t firstblockseen = 0;
 
 uint32_t komodo_segid32(char *coinaddr)
@@ -1424,17 +1436,22 @@ int8_t komodo_segid(int32_t nocache,int32_t height)
                     if ( newStakerActive == 2 || (newStakerActive == 0 && strcmp(destaddr,voutaddr) == 0 && block.vtx[txn_count-1].vout[0].nValue == value) )
                     {
                         segid = komodo_segid32(voutaddr) & 0x3f;
-                        //fprintf(stderr,"komodo_segid.(%d) -> %d\n",height,pindex->segid);
+                        if ( firstblockseen < 0 && height > 1 )
+                        {
+                            pindex->segid = segid;
+                            //fprintf(stderr,"komodo_segid.(%d) -> %d firstblockseen.%d\n",height,pindex->segid,firstblockseen);
+                        }
                     }
                 } //else fprintf(stderr,"komodo_segid ht.%d couldnt extract voutaddress\n",height);
             }
         }
-        if ( newStakerActive == 0 && firstblockseen > 0 && height > 1 )
-            pindex->segid = segid; // sets PoW/PoS and segid, LABS is saved in blockindex, if we started syncing under block 100 use the new cache. 
-        // The new staker sets segid in komodo_checkPOW, this persists after restart by being saved in the blockindex for blocks past the HF timestamp, to keep backwards compatibility.
-        // PoW blocks cannot contain a staking tx. If segid has not yet been set, we can set it here accurately.
-        else if ( newStakerActive == 2 && pindex->segid == -2 ) 
-            pindex->segid = segid;
+        // The new staker sets segid in komodo_checkPOW, this persists after restart by being saved in the blockindex for blocks past the HF timestamp. 
+        // If we have not already set segid then set it here, this should never happen once the new staker is active.
+        if ( firstblockseen > 0 && height > 1 && pindex->segid == -2 )
+        {
+            pindex->segid = segid; 
+            //fprintf(stderr,"komodo_segid.(%d) -> %d firstblockseen.%d\n",height,pindex->segid,firstblockseen);
+        }
     }
     return(segid);
 }
@@ -1445,15 +1462,18 @@ void komodo_segids(uint8_t *hashbuf,int32_t height,int32_t n)
     int32_t i,ht=height+101; CBlockIndex *blockone; 
     if ( firstblockseen == 0 && (blockone= komodo_chainactive(1)) != 0 )
     {
-        if ( ht > 2 && blockone->segid == -3 ) // we have seen the first block so use new index
+        if ( ht > 2 && blockone->segid == -3 ) // we have seen the first block 
             firstblockseen++;
-        else if ( ht < 100 ) // we can set the first block, all blocks will use new system from now on even after restart, 
+        else if ( ht < 100 ) // we can set the first block, sync will be much faster.
         {
             blockone->segid = -3;
-            FlushStateToDisk();
             firstblockseen++;
+            // line 4301 main.cpp : assert(view.Flush())
+            // possible assert fail under 100 blocks during initial sync. delaying the flush to disk appears to stop it, please try and break this! 
+            if ( ht >= 70 ) 
+                FlushStateToDisk();
         }
-        else if ( ht >= 100 && blockone->segid != -3 ) // we have not seen the first block use old no cache system.
+        else if ( ht >= 100 && blockone->segid != -3 ) // not syncing from block 1 so use old segid calculation by looking up every block from disk. 
             firstblockseen--;
         fprintf(stderr, "ht.%i set firstblockseen to %i nocache.%i\n", ht, firstblockseen, (firstblockseen<0));
     }
@@ -1978,10 +1998,9 @@ bool verusCheckPOSBlock(int32_t slowflag, CBlock *pblock, int32_t height)
     return(isPOS);
 }
 
-uint64_t komodo_notarypayamount(int32_t nHeight, int64_t notarycount)
+uint64_t komodo_notarypayamount(int32_t nHeight, int32_t notarycount)
 {
     int8_t curEra = 0; int64_t ret = 0;
-    // if we have an end block in the first era, find our current era
     if ( ASSETCHAINS_ENDSUBSIDY[0] > 1 )
     {
         for ( curEra = 0; curEra <= ASSETCHAINS_LASTERA; curEra++ )
@@ -1992,15 +2011,11 @@ uint64_t komodo_notarypayamount(int32_t nHeight, int64_t notarycount)
     }
     if ( curEra > ASSETCHAINS_LASTERA )
         return(0);
-    
     if ( notarycount == 0 )
     {
         fprintf(stderr, "komodo_notarypayamount failed num notaries is 0!\n");
         return(0);
     }
-    // Because of reorgs we cannot use the notarized height value. 
-    // We need to basically guess here and just pay some static amount.
-    // Has the unwanted effect of varying coin emission, but cannot be helped.
     //fprintf(stderr, "era.%i paying total of %lu\n",curEra, ASSETCHAINS_NOTARY_PAY[curEra]);
     ret = ASSETCHAINS_NOTARY_PAY[curEra] / notarycount;
     return(ret);
@@ -2027,30 +2042,22 @@ int32_t komodo_getnotarizedheight(uint32_t timestamp,int32_t height, uint8_t *sc
 
 uint64_t komodo_notarypay(CMutableTransaction &txNew, std::vector<int8_t> &NotarisationNotaries, uint32_t timestamp, int32_t height, uint8_t *script, int32_t len)
 {
-    // fetch notary pubkey array.
-    uint64_t total = 0, AmountToPay = 0;
+    uint64_t total = 0, AmountToPay;
     int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
     numSN = komodo_notaries(notarypubkeys, height, timestamp);
-
-    // No point going further, no notaries can be paid.
     if ( notarypubkeys[0][0] == 0 )
         return(0);
     
-    // Check the notarisation is valid.
     int32_t notarizedheight = komodo_getnotarizedheight(timestamp, height, script, len);
     if ( notarizedheight == 0 )
         return(0);
-
-    // resize coinbase vouts to number of notary nodes +1 for coinbase itself.
+    
     txNew.vout.resize(NotarisationNotaries.size()+1);
     
     // Calcualte the amount to pay according to the current era.
-    AmountToPay = komodo_notarypayamount(height,NotarisationNotaries.size());
-    if ( AmountToPay == 0 )
+    if ( (AmountToPay= komodo_notarypayamount(height,NotarisationNotaries.size())) == 0 )
         return(0);
     
-    // loop over notarisation vins and add transaction to coinbase.
-    // Commented prints here can be used to verify manually the pubkeys match.
     for (int8_t n = 0; n < NotarisationNotaries.size(); n++) 
     {
         uint8_t *ptr;
@@ -2095,89 +2102,55 @@ bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int8_t &numNN, const
 uint64_t komodo_checknotarypay(CBlock *pblock,int32_t height)
 {
     std::vector<int8_t> NotarisationNotaries; uint8_t *script; int32_t scriptlen;
-    uint64_t timestamp = pblock->nTime;
+    uint64_t timestamp = pblock->nTime, totalsats = 0;
     int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
     numSN = komodo_notaries(notarypubkeys, height, timestamp);
     if ( !GetNotarisationNotaries(notarypubkeys, numSN, pblock->vtx[1].vin, NotarisationNotaries) )
-        return(0);
-    
-    // check a notary didnt sign twice (this would be an invalid notarisation later on and cause problems)
-    std::set<int> checkdupes( NotarisationNotaries.begin(), NotarisationNotaries.end() );
-    if ( checkdupes.size() != NotarisationNotaries.size() ) {
-        fprintf(stderr, "Possible notarisation is signed multiple times by same notary. It is invalid.\n");
-        return(0);
-    }
-    if ( NotarisationNotaries.size() < LABSMINSIGS(numSN) )
     {
-        fprintf(stderr, "notarization does not meet min sigs\n");
-        return(0);
+        fprintf(stderr, "get notaries failed\n");
+        return(0);        
     }
-    const CChainParams& chainparams = Params();
-    const Consensus::Params &consensusParams = chainparams.GetConsensus();
-    uint64_t totalsats = 0;
-    CMutableTransaction txNew = CreateNewContextualCMutableTransaction(consensusParams, height);
-    if ( pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].nValue == 0 )
+    CMutableTransaction txNew = CreateNewContextualCMutableTransaction(Params().GetConsensus(), height);
+    if ( pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].scriptPubKey.IsOpReturn() )
     {
-        // Get the OP_RETURN for the notarisation
         uint8_t *script = (uint8_t *)&pblock->vtx[1].vout[1].scriptPubKey[0];
         int32_t scriptlen = (int32_t)pblock->vtx[1].vout[1].scriptPubKey.size();
-        if ( script[0] == OP_RETURN )
+        if ( (totalsats= komodo_notarypay(txNew, NotarisationNotaries, pblock->nTime, height, script, scriptlen)) == 0 )
         {
-            // Create the coinbase tx again, using the extracted data, this is the same function the miner uses, with the same data. 
-            // This allows us to know exactly that the coinbase is correct.
-            totalsats = komodo_notarypay(txNew, NotarisationNotaries, pblock->nTime, height, script, scriptlen);
-        } 
-        else 
-        {
-            fprintf(stderr, "vout 2 of notarisation is not OP_RETURN scriptlen.%i\n", scriptlen);
+            fprintf(stderr, "notary pay returned 0!\n");
             return(0);
         }
-    } else return(0);
-    
-    // if notarypay fails, because the notarisation is not valid, exit now as txNew was not created.
-    // This should never happen, as the notarisation is checked before this function is called.
-    if ( totalsats == 0 )
+    }
+    else 
     {
-        fprintf(stderr, "notary pay returned 0!\n");
+        fprintf(stderr, "komodo_checknotarypay <<<< invalid notarization\n");
         return(0);
     }
-    
-    int8_t n = 0, i = 0, matches = 0;
-    uint64_t total = 0, AmountToPay = 0;
-    
-    // get the pay amount from the created tx.
-    AmountToPay = txNew.vout[1].nValue;
-    
-    // Check the created coinbase pays the correct notaries.
-    BOOST_FOREACH(const CTxOut& txout, pblock->vtx[0].vout)
+    int8_t matches = 0;
+    int32_t numvouts = pblock->vtx[0].vout.size()-pblock->vtx[0].vout.back().scriptPubKey.IsOpReturn()-1;
+    uint64_t total = 0, AmountToPay = txNew.vout[1].nValue;
+    for ( int32_t n=numvouts; n > numvouts-NotarisationNotaries.size(); n-- )
     {
-        // skip the coinbase paid to the miner and the OP_RETURN if it exists. 
-        if ( n == 0 || txout.scriptPubKey.IsOpReturn() )
-        {
-            n++;
-            continue;
-        }
-        // Check the pubkeys match the pubkeys in the notarisation.
+        const CTxOut& txout = pblock->vtx[0].vout[n];
         script = (uint8_t *)&txout.scriptPubKey[0];
         scriptlen = (int32_t)txout.scriptPubKey.size();
+        int32_t flag = 0;
         if ( scriptlen == 35 && script[0] == 33 && script[34] == OP_CHECKSIG && memcmp(script+1,notarypubkeys[NotarisationNotaries[n-1]],33) == 0 )
         {
-            // check the value is correct
             if ( pblock->vtx[0].vout[n].nValue == AmountToPay )
             {
                 matches++;
                 total += txout.nValue;
                 //fprintf(stderr, "MATCHED AmountPaid.%lu notaryid.%i\n",AmountToPay,NotarisationNotaries[n-1]);
-            }
-            else fprintf(stderr, "NOT MATCHED AmountPaid.%llu AmountToPay.%llu notaryid.%i\n", (long long)pblock->vtx[0].vout[n].nValue, (long long)AmountToPay, NotarisationNotaries[n-1]);
-        }
-        n++;
+            } else flag++;
+        } else flag ++;
+        if (flag != 0 ) fprintf(stderr, "notaryid.%d vout.%d pays wrong pubkey or wrong amount.\n", NotarisationNotaries[n-1], n);
     }
     if ( matches != 0 && matches == NotarisationNotaries.size() && totalsats == total )
     {
         //fprintf(stderr, "Validated coinbase matches notarisation in tx position 1.\n" );
         return(totalsats);
-    }
+    } else fprintf(stderr, "check notary pay failed matches.%d sigs.%lld totalsats.%llu total.%llu\n",matches,(long long)NotarisationNotaries.size(),(long long unsigned)totalsats,(long long unsigned)total);
     return(0);
 }
 
@@ -2249,12 +2222,12 @@ void GetKomodoEarlytxidScriptPub()
     StartShutdown();
 }
 
-int64_t komodo_checkcommission(CBlock *pblock,int32_t height)
+int64_t komodo_checkcommission(CBlock *pblock,int32_t height, int32_t skipstaketx)
 {
     int64_t checktoshis=0; uint8_t *script,scripthex[8192]; int32_t scriptlen,matched = 0; static bool didinit = false;
     if ( ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 )
     {
-        checktoshis = komodo_commission(pblock,height);
+        checktoshis = komodo_commission(pblock,height,skipstaketx);
         if ( checktoshis >= 10000 && pblock->vtx[0].vout.size() < 2 )
         {
             //fprintf(stderr,"komodo_checkcommission vsize.%d height.%d commission %.8f\n",(int32_t)pblock->vtx[0].vout.size(),height,(double)checktoshis/COIN);
@@ -2321,7 +2294,7 @@ int32_t komodo_opretOffset(CBlock *pblock)
 
 int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,int32_t height)
 {
-    uint256 hash,merkleroot; arith_uint256 bnTarget,bhash; bool fNegative,fOverflow; uint8_t *script,pubkey33[33],pubkeys[64][33]; int32_t i,scriptlen,possible,PoSperc,is_PoSblock=0,n,failed = 0,notaryid = -1; int64_t checktoshis,value; CBlockIndex *pprev;
+    uint256 hash,merkleroot; arith_uint256 bnTarget,bhash; bool fNegative,fOverflow; uint8_t *script,pubkey33[33],pubkeys[64][33]; int32_t i,scriptlen,possible,PoSperc,is_PoSblock=0,n,failed = 0,notaryid = -1,newStakerActive=0; int64_t checktoshis,value; CBlockIndex *pprev;
     if ( KOMODO_TEST_ASSETCHAIN_SKIP_POW == 0 && Params().NetworkIDString() == "regtest" )
         KOMODO_TEST_ASSETCHAIN_SKIP_POW = 1;
     if ( !CheckEquihashSolution(pblock, Params()) )
@@ -2385,7 +2358,7 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
         CBlockIndex *pindex; 
         BlockMap::const_iterator it = mapBlockIndex.find(pblock->GetHash());
         pindex = it != mapBlockIndex.end() ? it->second : NULL;
-        int32_t newStakerActive = komodo_newStakerActive(height, pblock->nTime);
+        newStakerActive = komodo_newStakerActive(height, pblock->nTime);
         if ( (is_PoSblock= komodo_is_PoSblock(slowflag,height,pblock,bnTarget,bhash)) == 0 )
         {
             if ( slowflag == 0 || height <= 100 ) // need all past 100 blocks to calculate PoW target
@@ -2436,8 +2409,8 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
             if ( slowflag != 0 && newStakerActive != 0 ) 
             {
                 int8_t segid = -2;
-                // the value passed to stakeTxValue, is the blockreward + the valuein-valueout(txfee) of the last tx in the block.
-                // the coinbase must pay the fees from the last transaction and the block reward at a minimum.
+                // the value passed to stakeTxValue, is the stakers blockreward + the valuein-valueout(txfee) of the last tx in the block.
+                // the coinbase must pay the fees from the last transaction and the block reward at a minimum, maybe this should be ALL txfees and blockReward?
                 if ( pblock->vtx.size() < 1 || pblock->vtx[0].vout.size() < 1 )
                 {
                     fprintf(stderr, "[%s:%d] missing coinbase.\n", ASSETCHAINS_SYMBOL, height);
@@ -2488,20 +2461,19 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                     return(-1);
             }
         }
-        else
+        else if ( (ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) )
         {
-            if ( komodo_checkcommission(pblock,height) < 0 )
+            if ( komodo_checkcommission(pblock,height,(newStakerActive != 0 && is_PoSblock != 0)) < 0 )
                 return(-1);
         }
     }
-    // Consensus rule to force miners to mine the notary coinbase payment happens in ConnectBlock 
-    // the default daemon miner, checks the actual vins so the only way this will fail, is if someone changes the miner, 
-    // and then creates txs to the crypto address meeting min sigs and puts it in tx position 1.
-    // If they go through this effort, the block will still fail at connect block, and will be auto purged by the temp file fix.   
-    if ( failed == 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx.size() > 1 )
+    if ( failed == 0 && slowflag == 0 && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx.size() > 1 )
     {
-        // We check the full validation in ConnectBlock directly to get the amount for coinbase. So just approx here.
-        if ( slowflag == 0 && pblock->vtx[0].vout.size() > 1+komodo_opretOffset(pblock) )
+        // check vouts in coinabse is over minsigs, and cheaply check that the first tx is a notarization. 
+        uint8_t notarypubkeys[64][33];
+        int8_t numNN = komodo_notaries(notarypubkeys, height, pblock->nTime);
+        int32_t minsigs = LABSMINSIGS(numNN,pblock->nTime);
+        if ( pblock->vtx[0].vout.size() > minsigs )
         {
             // Check the notarisation tx is to the crypto address.
             if ( !komodo_is_notarytx(pblock->vtx[1]) == 1 )
@@ -2509,17 +2481,14 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                 fprintf(stderr, "ht.%i notarisation is not to crypto address\n",height);
                 return(-1); 
             }
-            // Check min sigs, and approx the notarization vins match notarypay vouts. 
-            int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0}; int32_t vins;
-            numSN = komodo_notaries(notarypubkeys, height, pblock->nTime);
-            if ( (vins= pblock->vtx[1].vin.size()) < LABSMINSIGS(numSN) )
+            if ( pblock->vtx[1].vin.size() < minsigs )
             {
-                fprintf(stderr, "ht.%i does not meet minsigs.%i sigs.%lld\n",height,LABSMINSIGS(numSN),(long long)pblock->vtx[1].vin.size());
+                fprintf(stderr, "ht.%i does not meet minsigs.%i sigs.%lld\n",height,minsigs,(long long)pblock->vtx[1].vin.size());
                 return(-1);
-            }
-            if ( pblock->vtx[0].vout.size() != ++vins+komodo_opretOffset(pblock) )
+            } 
+            if ( !pblock->vtx[1].vout.back().scriptPubKey.IsOpReturn() ) 
             {
-                fprintf(stderr, "ht.%i notarization_vins.%lld != notarypay_vouts.%lld opretOffset.%i\n",height,(long long)pblock->vtx[1].vin.size(),(long long)pblock->vtx[0].vout.size(),komodo_opretOffset(pblock));
+                fprintf(stderr, "ht.%i notarization tx has no opreturn\n",height);
                 return(-1);
             }
         }

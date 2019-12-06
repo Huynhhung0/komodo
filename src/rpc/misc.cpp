@@ -69,13 +69,13 @@ bool komodo_txnotarizedconfirmed(uint256 txid);
 uint32_t komodo_chainactive_timestamp();
 int32_t komodo_whoami(char *pubkeystr,int32_t height,uint32_t timestamp);
 extern uint64_t KOMODO_INTERESTSUM,KOMODO_WALLETBALANCE;
-extern int32_t KOMODO_LASTMINED,JUMBLR_PAUSE,KOMODO_LONGESTCHAIN,IS_STAKED_NOTARY,IS_KOMODO_NOTARY,STAKED_ERA,KOMODO_INSYNC;
+extern int32_t KOMODO_LASTMINED,JUMBLR_PAUSE,KOMODO_LONGESTCHAIN,IS_LABS_NOTARY,IS_KOMODO_NOTARY,LABS_ERA,KOMODO_INSYNC;
 extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 uint32_t komodo_segid32(char *coinaddr);
 int64_t komodo_coinsupply(int64_t *zfundsp,int64_t *sproutfundsp,int32_t height);
 int32_t notarizedtxid_height(char *dest,char *txidstr,int32_t *kmdnotarized_heightp);
-int8_t StakedNotaryID(std::string &notaryname, char *Raddress);
-uint64_t komodo_notarypayamount(int32_t nHeight, int64_t notarycount);
+int8_t LABS_NotaryID(std::string &notaryname, char *Raddress);
+uint64_t komodo_notarypayamount(int32_t nHeight, int32_t notarycount);
 int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp);
 
 #define KOMODO_VERSION "0.5.0"
@@ -90,8 +90,8 @@ extern std::string NOTARY_PUBKEY,NOTARY_ADDRESS; extern uint8_t NOTARY_PUBKEY33[
 
 int32_t getera(int timestamp)
 {
-    for (int32_t i = 0; i < NUM_STAKED_ERAS; i++) {
-        if ( timestamp <= STAKED_NOTARIES_TIMESTAMP[i] ) {
+    for (int32_t i = 0; i < NUM_LABS_ERAS; i++) {
+        if ( timestamp <= LABS_NOTARIES_TIMESTAMP[i] ) {
             return(i);
         }
     }
@@ -117,16 +117,16 @@ UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
     }
 
     // loop over era's notaries and push back each pair to the notary array
-    for (int8_t i = 0; i < num_notaries_STAKED[era]; i++) {
+    for (int8_t i = 0; i < num_notaries_LABS[era]; i++) {
         UniValue notary(UniValue::VOBJ);
-        notary.push_back(Pair(notaries_STAKED[era][i][0],notaries_STAKED[era][i][1]));
+        notary.push_back(Pair(notaries_LABS[era][i][0],notaries_LABS[era][i][1]));
         notaries.push_back(notary);
     }
 
     // get the min sigs .. this always rounds UP so min sigs in iguana is +1 min sigs in komodod, due to some rounding error.
     int minsigs;
-    if ( num_notaries_STAKED[era]/5 > overrideMinSigs )
-        minsigs = (num_notaries_STAKED[era] / 5) + 1;
+    if ( num_notaries_LABS[era]/5 > overrideMinSigs )
+        minsigs = (num_notaries_LABS[era] / 5) + 1;
     else
         minsigs = overrideMinSigs;
 
@@ -156,10 +156,10 @@ UniValue getnotarysendmany(const UniValue& params, bool fHelp, const CPubKey& my
     int era = getera(time(NULL));
 
     UniValue ret(UniValue::VOBJ);
-    for (int i = 0; i<num_notaries_STAKED[era]; i++)
+    for (int i = 0; i<num_notaries_LABS[era]; i++)
     {
         char Raddress[18]; uint8_t pubkey33[33];
-        decode_hex(pubkey33,33,(char *)notaries_STAKED[era][i][1]);
+        decode_hex(pubkey33,33,(char *)notaries_LABS[era][i][1]);
         pubkey2addr((char *)Raddress,(uint8_t *)pubkey33);
         ret.push_back(Pair(Raddress,amount));
     }
@@ -295,7 +295,7 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
      if ( NOTARY_PUBKEY33[0] != 0 ) {
         char pubkeystr[65]; int32_t notaryid; std::string notaryname;
-        if ( (notaryid= StakedNotaryID(notaryname, (char *)NOTARY_ADDRESS.c_str())) != -1 ) {
+        if ( (notaryid= LABS_NotaryID(notaryname, (char *)NOTARY_ADDRESS.c_str())) != -1 ) {
             obj.push_back(Pair("notaryid",        notaryid));
             obj.push_back(Pair("notaryname",      notaryname));
         } else if( (notaryid= komodo_whoami(pubkeystr,(int32_t)chainActive.LastTip()->GetHeight(),komodo_chainactive_timestamp())) >= 0 )  {
@@ -313,8 +313,8 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
     obj.push_back(Pair("rpcport",        ASSETCHAINS_RPCPORT));
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
     {
-        if ( is_STAKED(ASSETCHAINS_SYMBOL) != 0 )
-            obj.push_back(Pair("StakedEra",        STAKED_ERA));
+        if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 )
+            obj.push_back(Pair("StakedEra",        LABS_ERA));
         //obj.push_back(Pair("name",        ASSETCHAINS_SYMBOL));
         obj.push_back(Pair("magic",        (int)ASSETCHAINS_MAGIC));
         obj.push_back(Pair("premine",        ASSETCHAINS_SUPPLY));
