@@ -4038,8 +4038,9 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
 
     cvBlockChange.notify_all();
-    if ( KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN )
-        fprintf(stderr, "[%s:%lld] >>>>>>>>>>>>>>>>>>>>>>>>>>>>> SYNCED in %u seconds\n", ASSETCHAINS_SYMBOL, (long long)chainActive.Height(), nTimeBestReceived - (ASSETCHAINS_SYMBOL[0] == 0 ? KOMODO_PASSPORT_INITDONE : ASSETCHAIN_INIT));
+    static int32_t printed = 0;
+    if ( KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN && printed++ < 1 )
+        fprintf(stderr, "[%s:%lld] >>>>>>>>>>>>>>>>>>>>>>>>>>>>> SYNCED in %lld seconds\n", ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL, (long long)chainActive.Height(), (long long)nTimeBestReceived-(ASSETCHAINS_SYMBOL[0]==0?KOMODO_PASSPORT_INITDONE:ASSETCHAIN_INIT));
     /*
     // https://github.com/zcash/zcash/issues/3992 -> https://github.com/zcash/zcash/commit/346d11d3eb2f8162df0cb00b1d1f49d542495198
 
