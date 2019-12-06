@@ -1136,7 +1136,7 @@ UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk
         try {
             perc = params[0].get_int();
         }
-        catch (const std::runtime_error &e){
+        catch (...) {
             std::string strperc = params[0].get_str();
             perc = std::stoi(strperc);
         }

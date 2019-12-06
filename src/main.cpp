@@ -80,7 +80,7 @@ using namespace std;
 CCriticalSection cs_main;
 extern uint8_t NOTARY_PUBKEY33[33];
 extern int32_t KOMODO_LOADINGBLOCKS,KOMODO_LONGESTCHAIN,KOMODO_INSYNC,KOMODO_CONNECTING,KOMODO_EXTRASATOSHI;
-int32_t KOMODO_NEWBLOCKS;
+
 int32_t komodo_block2pubkey33(uint8_t *pubkey33,CBlock *block);
 //void komodo_broadcast(CBlock *pblock,int32_t limit);
 bool Getscriptaddress(char *destaddr,const CScript &scriptPubKey);
@@ -2564,7 +2564,7 @@ int IsNotInSync()
             return true;
         }
     }
-
+    
     CBlockIndex *pbi = chainActive.Tip();
     int longestchain = komodo_longestchain();
     if ( !pbi ||
@@ -2577,7 +2577,7 @@ int IsNotInSync()
                 true;
     }
 
-    return false;
+    return false; 
 }
 
 static bool fLargeWorkForkFound = false;
@@ -4023,14 +4023,11 @@ void static UpdateTip(CBlockIndex *pindexNew) {
     // New best block
     nTimeBestReceived = GetTime();
     mempool.AddTransactionsUpdated(1);
-    KOMODO_NEWBLOCKS++;
     double progress;
-    if ( ASSETCHAINS_SYMBOL[0] == 0 ) {
+    if ( ASSETCHAINS_SYMBOL[0] == 0 ) 
         progress = Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), chainActive.LastTip());
-    } else {
-	int32_t longestchain = komodo_longestchain();
-	progress = (longestchain > 0 ) ? (double) chainActive.Height() / longestchain : 1.0;
-    }
+    else 
+        progress = (KOMODO_LONGESTCHAIN > 0 ) ? (double) chainActive.Height() / KOMODO_LONGESTCHAIN : 1.0;
 
     LogPrintf("%s: new best=%s  height=%d  log2_work=%.8g  log2_stake=%.8g  tx=%lu  date=%s progress=%f  cache=%.1fMiB(%utx)\n", __func__,
               chainActive.LastTip()->GetBlockHash().ToString(), chainActive.Height(),
@@ -4041,7 +4038,8 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
 
     cvBlockChange.notify_all();
-    
+    if ( KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN )
+        fprintf(stderr, "[%s:%lld] >>>>>>>>>>>>>>>>>>>>>>>>>>>>> SYNCED in %u seconds\n", ASSETCHAINS_SYMBOL, (long long)chainActive.Height(), nTimeBestReceived - (ASSETCHAINS_SYMBOL[0] == 0 ? KOMODO_PASSPORT_INITDONE : ASSETCHAIN_INIT));
     /*
     // https://github.com/zcash/zcash/issues/3992 -> https://github.com/zcash/zcash/commit/346d11d3eb2f8162df0cb00b1d1f49d542495198
 
@@ -5800,7 +5798,7 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
                 //fprintf(stderr,"request headers from failed process block peer\n");
                 pfrom->PushMessage("getheaders", chainActive.GetLocator(chainActive.LastTip()), uint256());
             }*/
-            komodo_longestchain();
+            //komodo_longestchain();
             return error("%s: AcceptBlock FAILED", __func__);
         }
         //else fprintf(stderr,"added block %s %p\n",pindex->GetBlockHash().ToString().c_str(),pindex->pprev);
@@ -6227,15 +6225,11 @@ bool static LoadBlockIndexDB()
 
     PruneBlockIndexCandidates();
 
-    double progress;
-    if ( ASSETCHAINS_SYMBOL[0] == 0 ) {
+    double progress = 0.5;
+    if ( ASSETCHAINS_SYMBOL[0] == 0 ) 
         progress = Checkpoints::GuessVerificationProgress(chainparams.Checkpoints(), chainActive.LastTip());
-    } else {
-        int32_t longestchain = komodo_longestchain();
-        // TODO: komodo_longestchain does not have the data it needs at the time LoadBlockIndexDB
-        // runs, which makes it return 0, so we guess 50% for now
-        progress = (longestchain > 0 ) ? (double) chainActive.Height() / longestchain : 0.5;
-    }
+    else if (KOMODO_LONGESTCHAIN > 0 )
+        progress = (double) chainActive.Height() / KOMODO_LONGESTCHAIN;
     LogPrintf("%s: hashBestChain=%s height=%d date=%s progress=%f\n", __func__,
               chainActive.LastTip()->GetBlockHash().ToString(), chainActive.Height(),
               DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.LastTip()->GetBlockTime()),
