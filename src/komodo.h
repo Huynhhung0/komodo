@@ -369,7 +369,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
     }
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
         printf("[%s] no komodo_stateptr\n",ASSETCHAINS_SYMBOL);
         return;
     }
@@ -388,7 +388,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
                     ;
             }
         } else fp = fopen(fname,"wb+");
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
     }
     if ( height <= 0 )
     {
@@ -827,7 +827,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     memset(&zero,0,sizeof(zero));
     komodo_init(pindex->GetHeight());
-    KOMODO_INITDONE = (uint32_t)time(NULL);
+    //KOMODO_INITDONE = (uint32_t)time(NULL);
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
         fprintf(stderr,"unexpected null komodostateptr.[%s]\n",ASSETCHAINS_SYMBOL);
