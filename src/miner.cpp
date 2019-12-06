@@ -181,7 +181,7 @@ int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_
         }
         if( !GetBoolArg("-gen",false) ) 
             return(0);
-        if ( (rand() % $((delay*3))) < 1 ) 
+        if ( (rand() % (delay*3)) < 1 ) 
             fprintf(stderr, "[%s:%i] waiting %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
         usleep(500000);
     }
