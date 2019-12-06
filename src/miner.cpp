@@ -1715,28 +1715,8 @@ void static BitcoinMiner()
             fprintf(stderr,"try %s Mining with %s\n",ASSETCHAINS_SYMBOL,solver.c_str());
         while (true)
         {
-            if (chainparams.MiningRequiresPeers()) //chainActive.LastTip()->GetHeight() != 235300 &&
-            {
-                //if ( ASSETCHAINS_SEED != 0 && chainActive.LastTip()->GetHeight() < 100 )
-                //    break;
-                // Busy-wait for the network to come online so we don't waste time mining
-                // on an obsolete chain. In regtest mode we expect to fly solo.
-                miningTimer.stop();
-                do {
-                    bool fvNodesEmpty;
-                    {
-                        //LOCK(cs_vNodes);
-                        fvNodesEmpty = vNodes.empty();
-                    }
-                    if (!fvNodesEmpty )//&& !IsInitialBlockDownload())
-                        break;
-                    MilliSleep(15000);
-                    //fprintf(stderr,"fvNodesEmpty %d IsInitialBlockDownload(%s) %d\n",(int32_t)fvNodesEmpty,ASSETCHAINS_SYMBOL,(int32_t)IsInitialBlockDownload());
-
-                } while (true);
-                //fprintf(stderr,"%s Found peers\n",ASSETCHAINS_SYMBOL);
-                miningTimer.start();
-            }
+            // wait for chain to sync and connect to some peers before trying to mine, thanks Verus. 
+            waitForPeers(Params());
             //
             // Create new block
             //
