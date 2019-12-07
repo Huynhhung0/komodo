@@ -2052,7 +2052,8 @@ uint64_t komodo_notarypay(CMutableTransaction &txNew, std::vector<int8_t> &Notar
     if ( notarizedheight == 0 )
         return(0);
     
-    txNew.vout.resize(NotarisationNotaries.size()+1);
+    // add the notary pay vouts to the end of the coinbase transaction.
+    txNew.vout.resize(NotarisationNotaries.size()+txNew.vout.size());
     
     // Calcualte the amount to pay according to the current era.
     if ( (AmountToPay= komodo_notarypayamount(height,NotarisationNotaries.size())) == 0 )
