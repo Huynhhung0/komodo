@@ -2288,11 +2288,6 @@ int64_t komodo_checkcommission(CBlock *pblock,int32_t height, int32_t skipstaket
 
 bool KOMODO_TEST_ASSETCHAIN_SKIP_POW = 0;
 
-int32_t komodo_opretOffset(CBlock *pblock)
-{
-    return ( ASSETCHAINS_CBOPRET != 0 && pblock->vtx[0].vout.size() > 0 && pblock->vtx[0].vout.back().scriptPubKey.IsOpReturn());
-}
-
 int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,int32_t height)
 {
     uint256 hash,merkleroot; arith_uint256 bnTarget,bhash; bool fNegative,fOverflow; uint8_t *script,pubkey33[33],pubkeys[64][33]; int32_t i,scriptlen,possible,PoSperc,is_PoSblock=0,n,failed = 0,notaryid = -1,newStakerActive=0; int64_t checktoshis,value; CBlockIndex *pprev;
