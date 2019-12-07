@@ -1375,7 +1375,7 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstake
                     The 225000 exemption was/is for OUR, we can determine if a block is PoS/PoW 100% reliably after the hardfork due to the blockindex changes. 
                     This change prevents every PoW block losing the last transaction's commission, while not inflating the supply simply by staking blocks. 
                 */
-                skipstaketx = isLABS != 0 ? skipstaketx : 0;
+                skipstaketx = 0; //isLABS != 0 ? skipstaketx : 0;
                 if ( txn_count > 1 && i == txn_count-1 && ASSETCHAINS_STAKED != 0 && j == n-1 && (skipstaketx != 0 || (skipstaketx == 0 && height > 225000)) )
                     break;
                 //fprintf(stderr,"(%d %.8f).%d ",i,dstr(pblock->vtx[i].vout[j].nValue),j);
