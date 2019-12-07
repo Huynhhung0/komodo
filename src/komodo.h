@@ -369,7 +369,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
     }
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
         printf("[%s] no komodo_stateptr\n",ASSETCHAINS_SYMBOL);
         return;
     }
@@ -388,7 +388,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
                     ;
             }
         } else fp = fopen(fname,"wb+");
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
     }
     if ( height <= 0 )
     {
@@ -719,7 +719,7 @@ int32_t komodo_voutupdate(bool fJustCheck,int32_t *isratificationp,int32_t notar
                     }
                     komodo_stateupdate(height,0,0,0,zero,0,0,0,0,0,0,0,0,0,0,sp->MoM,sp->MoMdepth);
                     //if ( ASSETCHAINS_SYMBOL[0] != 0 )
-                        printf("[%s] ht.%d NOTARIZED.%d %s.%s %sTXID.%s lens.(%d %d) MoM.%s %d\n",ASSETCHAINS_SYMBOL,height,sp->NOTARIZED_HEIGHT,ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,srchash.ToString().c_str(),ASSETCHAINS_SYMBOL[0]==0?"BTC":"KMD",desttxid.ToString().c_str(),opretlen,len,sp->MoM.ToString().c_str(),sp->MoMdepth);
+                        printf("[%s] ht.%d NOTARIZED.%d %s.%s %sTXID.%s lens.(%d %d) MoM.%s %d\n",ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,height,sp->NOTARIZED_HEIGHT,ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,srchash.ToString().c_str(),ASSETCHAINS_SYMBOL[0]==0?"BTC":"KMD",desttxid.ToString().c_str(),opretlen,len,sp->MoM.ToString().c_str(),sp->MoMdepth);
                     
                     if ( ASSETCHAINS_SYMBOL[0] == 0 )
                     {
@@ -827,7 +827,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     memset(&zero,0,sizeof(zero));
     komodo_init(pindex->GetHeight());
-    KOMODO_INITDONE = (uint32_t)time(NULL);
+    //KOMODO_INITDONE = (uint32_t)time(NULL);
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
         fprintf(stderr,"unexpected null komodostateptr.[%s]\n",ASSETCHAINS_SYMBOL);

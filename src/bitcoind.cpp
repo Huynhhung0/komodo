@@ -103,8 +103,7 @@ void WaitForShutdown(boost::thread_group* threadGroup)
         }
         else
         {
-            //komodo_interestsum();
-            //komodo_longestchain();
+            komodo_longestchain();
             if ( ASSETCHAINS_CBOPRET != 0 )
                 komodo_cbopretupdate(0);
             for (i=0; i<=ASSETCHAINS_BLOCKTIME/5; i++)
@@ -132,7 +131,6 @@ extern int32_t IS_KOMODO_NOTARY,USE_EXTERNAL_PUBKEY;
 extern uint32_t ASSETCHAIN_INIT;
 extern std::string NOTARY_PUBKEY;
 int32_t komodo_is_issuer();
-void komodo_passport_iteration();
 
 bool AppInit(int argc, char* argv[])
 {

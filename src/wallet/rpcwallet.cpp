@@ -8318,12 +8318,17 @@ UniValue heirfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
 	LOCK2(cs_main, pwalletMain->cs_wallet);
     
     if (params.size() == 6)	// tokens in satoshis:
-    amount = atoll(params[0].get_str().c_str());
-    else { // coins:
-        amount = 0;   
-        if (!ParseFixedPoint(params[0].get_str(), 8, &amount))  // using ParseFixedPoint instead atof to avoid small round errors
-                amount = -1; // set error
-    }
+		amount = atoll(params[0].get_str().c_str());
+    	else { // coins:
+        	amount = 0;   
+        	if (!ParseFixedPoint(params[0].get_str(), 8, &amount))  // using ParseFixedPoint instead atof to avoid small round errors
+            		amount = -1; // set error
+    	}
+	if (amount <= 0) {
+		result.push_back(Pair("result", "error"));
+		result.push_back(Pair("error", "incorrect amount"));
+		return result;
+	}
 	
 	name = params[1].get_str();
 
