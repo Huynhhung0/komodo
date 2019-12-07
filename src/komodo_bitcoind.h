@@ -1303,9 +1303,9 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
 uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstaketx)
 {
-    static bool didinit = false,ishush3 = false;
+    static bool didinit = false,ishush3 = false; int32_t isLABS;
     // LABS fungible chains, cannot have any block reward!
-    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 2 )
+    if ( (isLABS= is_LABSCHAIN(ASSETCHAINS_SYMBOL)) == 2 )
         return(0);
 
     if (!didinit) {
@@ -1375,12 +1375,7 @@ uint64_t komodo_commission(const CBlock *pblock,int32_t height,int32_t skipstake
                     The 225000 exemption was/is for OUR, we can determine if a block is PoS/PoW 100% reliably after the hardfork due to the blockindex changes. 
                     This change prevents every PoW block losing the last transaction's commission, while not inflating the supply simply by staking blocks. 
                 */
-                skipstaketx = is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 ? skipstaketx : 0;
-                if ( skipstaketx < 0 )
-                {
-                    fprintf(stderr, "komodo_commission: no pindex or pindex->segid set from komodo_check_deposit try to set it here?\n");
-                    KOMODO_STOPAT = height+20; // temporary, should never enter this if. 
-                }
+                skipstaketx = isLABS != 0 ? skipstaketx : 0;
                 if ( txn_count > 1 && i == txn_count-1 && ASSETCHAINS_STAKED != 0 && j == n-1 && (skipstaketx != 0 || (skipstaketx == 0 && height > 225000)) )
                     break;
                 //fprintf(stderr,"(%d %.8f).%d ",i,dstr(pblock->vtx[i].vout[j].nValue),j);
@@ -2435,7 +2430,7 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
             failed = 0;
         }
     }
-    if ( failed == 0 && ASSETCHAINS_COMMISSION != 0 ) 
+    if ( failed == 0 && (ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) ) 
     {
         if ( height == 1 )
         {
@@ -2459,7 +2454,7 @@ int32_t komodo_checkPOW(int64_t stakeTxValue, int32_t slowflag,CBlock *pblock,in
                     return(-1);
             }
         }
-        else if ( (ASSETCHAINS_FOUNDERS_REWARD != 0 || ASSETCHAINS_COMMISSION != 0) )
+        else
         {
             if ( komodo_checkcommission(pblock,height,(newStakerActive != 0 && is_PoSblock != 0)) < 0 )
                 return(-1);
