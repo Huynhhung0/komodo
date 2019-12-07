@@ -141,6 +141,8 @@ void vcalc_sha256(char deprecated[(256 >> 3) * 2 + 1],uint8_t hash[256 >> 3],uin
 
 uint32_t Mining_start,Mining_height;
 int32_t My_notaryid = -1;
+bool EnsureWalletIsAvailable(bool avoidException);
+extern bool fRequestShutdown;
 int32_t komodo_chosennotary(int32_t *notaryidp,int32_t height,uint8_t *pubkey33,uint32_t timestamp);
 int32_t komodo_pax_opreturn(int32_t height,uint8_t *opret,int32_t maxsize);
 int32_t komodo_baseid(char *origbase);
@@ -179,11 +181,13 @@ int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_
             fprintf(stderr, "[%s:%i] block arrived, building new block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
             return(0);
         }
-        if( !GetBoolArg("-gen",false) ) 
-            return(0);
-        if ( (rand() % (delay*3)) < 1 ) 
+        if ( (rand() % (delay*10)) == 0 ) 
             fprintf(stderr, "[%s:%i] waiting %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
-        usleep(500000);
+        if( !GetBoolArg("-gen",false) || fRequestShutdown ) 
+            return(0);
+        usleep(50000);
+        if( !GetBoolArg("-gen",false) || fRequestShutdown ) 
+            return(0);
     }
     return(1);
 }
