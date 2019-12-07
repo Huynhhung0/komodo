@@ -2064,8 +2064,8 @@ uint64_t komodo_notarypay(CMutableTransaction &txNew, std::vector<int8_t> &Notar
     for (int8_t n = 0; n < NotarisationNotaries.size(); n++) 
     {
         uint8_t *ptr;
-        txNew.vout[n+1].scriptPubKey.resize(35);
-        ptr = (uint8_t *)&txNew.vout[n+1].scriptPubKey[0];
+        txNew.vout[n+diff].scriptPubKey.resize(35);
+        ptr = (uint8_t *)&txNew.vout[n+diff].scriptPubKey[0];
         ptr[0] = 33;
         for (int8_t i=0; i<33; i++)
         {
@@ -2073,9 +2073,9 @@ uint64_t komodo_notarypay(CMutableTransaction &txNew, std::vector<int8_t> &Notar
             //fprintf(stderr,"%02x",ptr[i+1]);
         }
         ptr[34] = OP_CHECKSIG;
-        //fprintf(stderr," set notary %i PUBKEY33 into vout[%i] amount.%lu\n",NotarisationNotaries[n],n+1,AmountToPay);
-        txNew.vout[n+1].nValue = AmountToPay;
-        total += txNew.vout[n+1].nValue;
+        //fprintf(stderr," set notary %i PUBKEY33 into vout[%i] amount.%lu\n",NotarisationNotaries[n],n+diff,AmountToPay);
+        txNew.vout[n+diff].nValue = AmountToPay;
+        total += txNew.vout[n+diff].nValue;
     }
     return(total);
 }
