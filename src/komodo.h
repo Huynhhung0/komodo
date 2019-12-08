@@ -369,7 +369,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
     }
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
         printf("[%s] no komodo_stateptr\n",ASSETCHAINS_SYMBOL);
         return;
     }
@@ -388,7 +388,7 @@ void komodo_stateupdate(int32_t height,uint8_t notarypubs[][33],uint8_t numnotar
                     ;
             }
         } else fp = fopen(fname,"wb+");
-        KOMODO_INITDONE = (uint32_t)time(NULL);
+        //KOMODO_INITDONE = (uint32_t)time(NULL);
     }
     if ( height <= 0 )
     {
@@ -719,7 +719,7 @@ int32_t komodo_voutupdate(bool fJustCheck,int32_t *isratificationp,int32_t notar
                     }
                     komodo_stateupdate(height,0,0,0,zero,0,0,0,0,0,0,0,0,0,0,sp->MoM,sp->MoMdepth);
                     //if ( ASSETCHAINS_SYMBOL[0] != 0 )
-                        printf("[%s] ht.%d NOTARIZED.%d %s.%s %sTXID.%s lens.(%d %d) MoM.%s %d\n",ASSETCHAINS_SYMBOL,height,sp->NOTARIZED_HEIGHT,ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,srchash.ToString().c_str(),ASSETCHAINS_SYMBOL[0]==0?"BTC":"KMD",desttxid.ToString().c_str(),opretlen,len,sp->MoM.ToString().c_str(),sp->MoMdepth);
+                        printf("[%s] ht.%d NOTARIZED.%d %s.%s %sTXID.%s lens.(%d %d) MoM.%s %d\n",ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,height,sp->NOTARIZED_HEIGHT,ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL,srchash.ToString().c_str(),ASSETCHAINS_SYMBOL[0]==0?"BTC":"KMD",desttxid.ToString().c_str(),opretlen,len,sp->MoM.ToString().c_str(),sp->MoMdepth);
                     
                     if ( ASSETCHAINS_SYMBOL[0] == 0 )
                     {
@@ -815,7 +815,7 @@ int32_t komodo_notarycmp(uint8_t *scriptPubKey,int32_t scriptlen,uint8_t pubkeys
 int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
 {
     static int32_t hwmheight;
-    int32_t staked_era; static int32_t lastStakedEra;
+    int32_t labs_era; static int32_t lastStakedEra;
     std::vector<int32_t> notarisations;
     uint64_t signedmask,voutmask; char symbol[KOMODO_ASSETCHAIN_MAXLEN],dest[KOMODO_ASSETCHAIN_MAXLEN]; struct komodo_state *sp;
     uint8_t scriptbuf[10001],pubkeys[64][33],rmd160[20],scriptPubKey[35]; uint256 zero,btctxid,txhash;
@@ -827,7 +827,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     memset(&zero,0,sizeof(zero));
     komodo_init(pindex->GetHeight());
-    KOMODO_INITDONE = (uint32_t)time(NULL);
+    //KOMODO_INITDONE = (uint32_t)time(NULL);
     if ( (sp= komodo_stateptr(symbol,dest)) == 0 )
     {
         fprintf(stderr,"unexpected null komodostateptr.[%s]\n",ASSETCHAINS_SYMBOL);
@@ -835,16 +835,16 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     //fprintf(stderr,"%s connect.%d\n",ASSETCHAINS_SYMBOL,pindex->nHeight);
     // Wallet Filter. Disabled here. Cant be activated by notaries or pools with some changes.
-    if ( is_STAKED(ASSETCHAINS_SYMBOL) != 0 || IS_STAKED_NOTARY > -1 )
+    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 || IS_LABS_NOTARY > -1 )
     {
-        staked_era = STAKED_era(pindex->GetBlockTime());
-        if ( !fJustCheck && staked_era != lastStakedEra )
+        labs_era = get_LABS_ERA(pindex->GetBlockTime());
+        if ( !fJustCheck && labs_era != lastStakedEra )
         {
             uint8_t tmp_pubkeys[64][33];
-            int8_t numSN = numStakedNotaries(tmp_pubkeys,staked_era);
-            UpdateNotaryAddrs(tmp_pubkeys,numSN);
-            STAKED_ERA = staked_era;
-            lastStakedEra = staked_era;
+            int8_t numSN = num_LABSNotaries(tmp_pubkeys,labs_era);
+            UpdateLABSNotaryAddrs(tmp_pubkeys,numSN);
+            LABS_ERA = labs_era;
+            lastStakedEra = labs_era;
         }
     }
     numnotaries = komodo_notaries(pubkeys,pindex->GetHeight(),pindex->GetBlockTime());
@@ -873,7 +873,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         txn_count = block.vtx.size();
         for (i=0; i<txn_count; i++)
         {
-            if ( (is_STAKED(ASSETCHAINS_SYMBOL) != 0 && staked_era == 0) || (is_STAKED(ASSETCHAINS_SYMBOL) == 255) ) {
+            if ( (is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 && labs_era == 0) || (is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 255) ) {
                 // in era gap or chain banned, no point checking any invlaid notarisations.
                 break;
             }

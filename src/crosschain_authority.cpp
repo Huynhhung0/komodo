@@ -7,9 +7,9 @@ int GetSymbolAuthority(const char* symbol)
 {
     if (strncmp(symbol, "TXSCL", 5) == 0)
         return CROSSCHAIN_TXSCL;
-    if (is_STAKED(symbol) != 0) {
-        //printf("RETURNED CROSSCHAIN STAKED AS TRUE\n");
-        return CROSSCHAIN_STAKED;
+    if (is_LABSCHAIN(symbol) != 0) {
+        //printf("RETURNED CROSSCHAIN LABS AS TRUE\n");
+        return CROSSCHAIN_LABS;
     }
     //printf("RETURNED CROSSCHAIN KOMODO AS TRUE\n");
     return CROSSCHAIN_KOMODO;
@@ -60,11 +60,11 @@ bool CheckTxAuthority(const CTransaction &tx, CrosschainAuthority auth)
 /*
 const CrosschainAuthority auth_STAKED = [&](){
     CrosschainAuthority auth;
-    auth.requiredSigs = (num_notaries_STAKED / 5);
-    auth.size = num_notaries_STAKED;
+    auth.requiredSigs = (num_notaries_LABS / 5);
+    auth.size = num_notaries_LABS;
     for (int n=0; n<auth.size; n++)
         for (size_t i=0; i<33; i++)
-            sscanf(notaries_STAKED[n][1]+(i*2), "%2hhx", auth.notaries[n]+i);
+            sscanf(notaries_LABS[n][1]+(i*2), "%2hhx", auth.notaries[n]+i);
     return auth;
 }();
 */

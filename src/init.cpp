@@ -95,7 +95,6 @@ using namespace std;
 #include "komodo_defs.h"
 extern void ThreadSendAlert();
 extern bool komodo_dailysnapshot(int32_t height);
-extern void komodo_init(int32_t height);
 extern int32_t KOMODO_LOADINGBLOCKS;
 extern bool VERUS_MINTBLOCKS;
 extern char ASSETCHAINS_SYMBOL[];
@@ -745,7 +744,6 @@ void ThreadNotifyRecentlyAdded()
             std::chrono::time_point<std::chrono::steady_clock>(nextFire));
 
         boost::this_thread::interruption_point();
-
         mempool.NotifyRecentlyAdded();
     }
 }

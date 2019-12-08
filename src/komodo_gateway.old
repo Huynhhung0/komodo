@@ -1,4 +1,3 @@
-
 /******************************************************************************
  * Copyright © 2014-2019 The SuperNET Developers.                             *
  *                                                                            *
@@ -20,6 +19,7 @@
 /*#include "secp256k1/include/secp256k1.h"
 #include "secp256k1/include/secp256k1_schnorrsig.h"
 #include "secp256k1/include/secp256k1_musig.h"
+
 int32_t dummy_linker_tricker()
 {
     secp256k1_context *ctx = 0; std::vector<uint8_t> musig64; CPubKey pk; secp256k1_schnorrsig musig; secp256k1_pubkey combined_pk;
@@ -682,10 +682,10 @@ int32_t komodo_bannedset(int32_t *indallvoutsp,uint256 *array,int32_t max)
 
 void komodo_passport_iteration();
 
-int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pindex) // verify above block is valid pax pricing
+int32_t komodo_check_deposit(int32_t height,const CBlock& block,uint32_t prevtime) // verify above block is valid pax pricing
 {
     static uint256 array[64]; static int32_t numbanned,indallvouts;
-    int32_t i,j,k,n,ht,baseid,txn_count,activation,num,opretlen,offset=1,errs=0,notmatched=0,matched=0,kmdheights[256],otherheights[256]; uint256 hash,txids[256],merkleroot; char symbol[KOMODO_ASSETCHAIN_MAXLEN],base[KOMODO_ASSETCHAIN_MAXLEN]; uint16_t vouts[256]; int8_t baseids[256]; uint8_t *script,opcode,rmd160s[256*20]; uint64_t total,subsidy,available,deposited,issued,withdrawn,approved,redeemed,seed; int64_t checktoshis,values[256],srcvalues[256]; struct pax_transaction *pax; struct komodo_state *sp; CTransaction tx;
+    int32_t i,j,k,n,ht,baseid,txn_count,activation,num,opretlen,offset=1,errs=0,notmatched=0,matched=0,kmdheights[256],otherheights[256]; uint256 hash,txids[256]; char symbol[KOMODO_ASSETCHAIN_MAXLEN],base[KOMODO_ASSETCHAIN_MAXLEN]; uint16_t vouts[256]; int8_t baseids[256]; uint8_t *script,opcode,rmd160s[256*20]; uint64_t total,subsidy,available,deposited,issued,withdrawn,approved,redeemed,seed; int64_t checktoshis,values[256],srcvalues[256]; struct pax_transaction *pax; struct komodo_state *sp; CTransaction tx;
     activation = 235300;
     if ( *(int32_t *)&array[0] == 0 )
         numbanned = komodo_bannedset(&indallvouts,array,(int32_t)(sizeof(array)/sizeof(*array)));
@@ -721,9 +721,9 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pin
                         }
                     }
                     if ( fNotaryProofVinTxFound && block.vtx[0].vout[0].scriptPubKey == tx.vout[block.vtx[txn_count-1].vin[0].prevout.n].scriptPubKey )
-                    {
-                        notmatched = 1;
-                    }
+                        {
+                            notmatched = 1;
+                        }
                 }
             }
             n = block.vtx[i].vin.size();
@@ -769,7 +769,6 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pin
             total += val;
             if ( total < prevtotal || (val != 0 && total == prevtotal) )
             {
-                //fprintf(stderr, "total.%li < prevtotal.%li || val.%li\n", total, prevtotal, val);
                 overflow = 1;
                 break;
             }
@@ -777,7 +776,6 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pin
         }
         if ( ASSETCHAINS_SYMBOL[0] == 0 )
         {
-            //fprintf(stderr, "overflow.%i total.%li COIN/10.%li\n",overflow, total, COIN/10);
             if ( overflow != 0 || total > COIN/10 )
             {
                 if ( height >= activation )
@@ -814,12 +812,11 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pin
         else
         {
             checktoshis = 0;
-            if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 ) && height > 1 )
+            if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD) && height > 1 )
             {
-                int32_t skipstaketx = ((komodo_newStakerActive(height, block.nTime) != 0) && (DecodeStakingOpRet(block.vtx.back().vout.back().scriptPubKey, merkleroot) != 0));
-                if ( (checktoshis= komodo_checkcommission((CBlock *)&block,height,skipstaketx)) < 0 )
+                if ( (checktoshis= komodo_checkcommission((CBlock *)&block,height)) < 0 )
                 {
-                    fprintf(stderr,"ht.%d checktoshis %.8f overflow.%d total %.8f strangeout.%d skipstaketx.%d\n",height,dstr(checktoshis),overflow,dstr(total),strangeout,skipstaketx);
+                    fprintf(stderr,"ht.%d checktoshis %.8f overflow.%d total %.8f strangeout.%d\n",height,dstr(checktoshis),overflow,dstr(total),strangeout);
                     return(-1);
                 }
             }
@@ -1256,6 +1253,7 @@ void komodo_stateind_set(struct komodo_state *sp,uint32_t *inds,int32_t n,uint8_
     printf("numR.%d numV.%d numN.%d count.%d\n",numR,numV,numN,count);
     /*else if ( func == 'K' ) // KMD height: stop after 1st
     else if ( func == 'T' ) // KMD height+timestamp: stop after 1st
+
     else if ( func == 'N' ) // notarization, scan backwards 1440+ blocks;
     else if ( func == 'V' ) // price feed: can stop after 1440+
     else if ( func == 'R' ) // opreturn:*/
@@ -1443,7 +1441,7 @@ void komodo_passport_iteration()
     int32_t maxseconds = 10;
     FILE *fp; uint8_t *filedata; long fpos,datalen,lastfpos; int32_t baseid,limit,n,ht,isrealtime,expired,refid,blocks,longest; struct komodo_state *sp,*refsp; char *retstr,fname[512],*base,symbol[KOMODO_ASSETCHAIN_MAXLEN],dest[KOMODO_ASSETCHAIN_MAXLEN]; uint32_t buf[3],starttime; uint64_t RTmask = 0; //CBlockIndex *pindex;
     expired = 0;
-    while ( KOMODO_INITDONE == 0 )
+    while ( 0 && KOMODO_INITDONE == 0 )
     {
         fprintf(stderr,"[%s] PASSPORT iteration waiting for KOMODO_INITDONE\n",ASSETCHAINS_SYMBOL);
         sleep(3);
@@ -1452,7 +1450,7 @@ void komodo_passport_iteration()
     {
         if ( ASSETCHAINS_SYMBOL[0] == 0 )
             komodo_interestsum();
-        komodo_longestchain();
+        //komodo_longestchain();
         lastinterest = komodo_chainactive_timestamp();
     }
     refsp = komodo_stateptr(symbol,dest);
@@ -1585,7 +1583,7 @@ void komodo_passport_iteration()
     refsp->RTmask |= RTmask;
     if ( expired == 0 && KOMODO_PASSPORT_INITDONE == 0 )
     {
-        KOMODO_PASSPORT_INITDONE = starttime;
+        KOMODO_PASSPORT_INITDONE = 1;
         printf("READY for %s RPC calls at %u! done PASSPORT %s refid.%d\n",ASSETCHAINS_SYMBOL,(uint32_t)time(NULL),ASSETCHAINS_SYMBOL,refid);
     }
 }
@@ -2039,6 +2037,7 @@ const char *Techstocks[] =
 { "AAPL","ADBE","ADSK","AKAM","AMD","AMZN","ATVI","BB","CDW","CRM","CSCO","CYBR","DBX","EA","FB","GDDY","GOOG","GRMN","GSAT","HPQ","IBM","INFY","INTC","INTU","JNPR","MSFT","MSI","MU","MXL","NATI","NCR","NFLX","NTAP","NVDA","ORCL","PANW","PYPL","QCOM","RHT","S","SHOP","SNAP","SPOT","SYMC","SYNA","T","TRIP","TWTR","TXN","VMW","VOD","VRSN","VZ","WDC","XRX","YELP","YNDX","ZEN"
 };
 const char *Metals[] = { "XAU", "XAG", "XPT", "XPD", };
+
 const char *Markets[] = { "DJIA", "SPX", "NDX", "VIX" };
 */
 
@@ -2164,6 +2163,7 @@ int32_t get_cryptoprices(uint32_t *prices,const char *list[],int32_t n,std::vect
     }
     return(price);
 }
+
 uint32_t get_currencyprice(const char *symbol)
 {
     char url[512]; cJSON *json,*obj; uint32_t price = 0;
@@ -2176,6 +2176,7 @@ uint32_t get_currencyprice(const char *symbol)
     }
     return(price);
 }
+
 int32_t get_stocks(const char *list[],int32_t n)
 {
     int32_t i,errs=0; uint32_t price;
