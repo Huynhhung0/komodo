@@ -1103,6 +1103,56 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp, const CPubKey& mypk
     return result;
 }
 
+UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk)
+{
+    UniValue result(UniValue::VOBJ);
+    if ( fHelp || params.size() > 1 )
+        throw runtime_error(
+        "setstakingsplit\n"
+        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase.\n"
+        "\nArguments:\n"
+        "1. \"split_percentage\"         (numeric) split ratio range 0-100.\n"
+        "\nResult:\n"
+        "  {\n"
+        "    \"split_percentage\" : \"split_percentage\"     (numeric) range 0-100\n"
+        "  }\n"
+        "\nExamples:\n"
+        + HelpExampleCli("setstakingsplit", "0")
+        + HelpExampleRpc("setstakingsplit", "100")
+    );
+    
+    LOCK(cs_main);
+    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) != 1 ) 
+    {
+        throw runtime_error("New PoS64 staker not active yet\n");
+    }
+    if ( params.size() == 0 )
+    {
+        result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
+    }
+    else
+    {
+        int32_t perc;
+        try {
+            perc = params[0].get_int();
+        }
+        catch (...) {
+            std::string strperc = params[0].get_str();
+            perc = std::stoi(strperc);
+        }
+        
+        if ( perc >= 0 && perc <= 100 ) 
+        {
+            ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
+            result.push_back(Pair("split_percentage", perc));
+        }
+        else 
+        {
+            throw runtime_error("must be between 0 and 100 inclusive.\n");
+        }
+    }
+    return result;
+}
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
@@ -1117,6 +1167,7 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocksubsidy",        &getblocksubsidy,        true  },
 
 #ifdef ENABLE_MINING
+    { "generating",         "setstakingsplit",        &setstakingsplit,        true  },
     { "generating",         "getgenerate",            &getgenerate,            true  },
     { "generating",         "setgenerate",            &setgenerate,            true  },
     { "generating",         "generate",               &generate,               true  },

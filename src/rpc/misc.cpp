@@ -75,7 +75,7 @@ uint32_t komodo_segid32(char *coinaddr);
 int64_t komodo_coinsupply(int64_t *zfundsp,int64_t *sproutfundsp,int32_t height);
 int32_t notarizedtxid_height(char *dest,char *txidstr,int32_t *kmdnotarized_heightp);
 int8_t LABS_NotaryID(std::string &notaryname, char *Raddress);
-uint64_t komodo_notarypayamount(int32_t nHeight, int64_t notarycount);
+uint64_t komodo_notarypayamount(int32_t nHeight, int32_t notarycount);
 int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp);
 
 #define KOMODO_VERSION "0.5.0"

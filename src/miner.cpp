@@ -123,18 +123,9 @@ public:
 
 void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
-    uint32_t saveTime = pblock->nTime;
     if ( ASSETCHAINS_ADAPTIVEPOW <= 0 )
         pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
     else pblock->nTime = std::max((int64_t)(pindexPrev->nTime+1), GetAdjustedTime());
-    
-    // saveTime should start at utxo elegible time, and only be increased here, 
-    // shouldnt matter because the block should be broadcast as soon as the elegible time passes. 
-    if ( ASSETCHAINS_STAKED != 0 && saveTime > pblock->nTime )
-    {
-        fprintf(stderr, "increasing blocktime from %u to %u >>>>>>> ", pblock->nTime, saveTime);
-        pblock->nTime = saveTime;
-    }
     
     // Updating time can change work required on testnet:
     if (ASSETCHAINS_ADAPTIVEPOW > 0 || consensusParams.nPowAllowMinDifficultyBlocksAfterHeight != boost::none)
@@ -150,6 +141,8 @@ void vcalc_sha256(char deprecated[(256 >> 3) * 2 + 1],uint8_t hash[256 >> 3],uin
 
 uint32_t Mining_start,Mining_height;
 int32_t My_notaryid = -1;
+bool EnsureWalletIsAvailable(bool avoidException);
+extern bool fRequestShutdown;
 int32_t komodo_chosennotary(int32_t *notaryidp,int32_t height,uint8_t *pubkey33,uint32_t timestamp);
 int32_t komodo_pax_opreturn(int32_t height,uint8_t *opret,int32_t maxsize);
 int32_t komodo_baseid(char *origbase);
@@ -173,28 +166,28 @@ CScript komodo_mineropret(int32_t nHeight);
 bool komodo_appendACscriptpub();
 CScript komodo_makeopret(CBlock *pblock, bool fNew);
 
-int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_t stakeHeight, uint32_t delay)
+int32_t komodo_waituntilelegible(CBlock *pblock, CBlockIndex *pindexPrev, int32_t stakeHeight, int32_t delay)
 {
-    while ( (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) > (int64_t)GetAdjustedTime() )
+    int32_t secToElegible;
+    while ( (secToElegible= pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime()) > 0 )
     {
-        int64_t secToElegible = (int64_t)(pblock->nTime-ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX-GetAdjustedTime());
-        if ( delay <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
+        if ( delay == ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF && secToElegible <= ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF )
         {
-            UpdateTime(pblock, Params().GetConsensus(), pindexPrev); 
-            if ( (rand() % 100) < 1 ) 
-                fprintf(stderr, "[%s:%i] entering PoW miner with %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
+            fprintf(stderr, "[%s:%i] starting PoW with %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
             break;
         }
-        else if ( (rand() % 100) < 2 ) 
-            fprintf(stderr, "[%s:%i] %llds until elegible...\n", ASSETCHAINS_SYMBOL, stakeHeight, (long long)secToElegible);
         if ( chainActive.Height() >= stakeHeight )
         {
-            fprintf(stderr, "[%s:%i] Chain tip advanced, creating new PoS block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
+            fprintf(stderr, "[%s:%i] block arrived, building new block.\n", ASSETCHAINS_SYMBOL, stakeHeight);
             return(0);
         }
-        if( !GetBoolArg("-gen",false) ) 
+        if ( (rand() % (delay*10)) == 0 ) 
+            fprintf(stderr, "[%s:%i] waiting %ds until block is elegible for broadcast...\n", ASSETCHAINS_SYMBOL, stakeHeight, secToElegible);
+        if( !GetBoolArg("-gen",false) || fRequestShutdown ) 
             return(0);
-        sleep(1);
+        usleep(50000);
+        if( !GetBoolArg("-gen",false) || fRequestShutdown ) 
+            return(0);
     }
     return(1);
 }
@@ -640,7 +633,7 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             }
             else
             {
-                blocktime = GetAdjustedTime();                
+                blocktime = GetAdjustedTime();
                 uint256 merkleroot = komodo_calcmerkleroot(pblock, pindexPrev->GetBlockHash(), nHeight, true, scriptPubKeyIn);
                 //fprintf(stderr, "MINER: merkleroot.%s\n", merkleroot.GetHex().c_str());
                 /*
@@ -661,11 +654,11 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                 }
                  
                 siglen = komodo_staked(txStaked, pblock->nBits, &blocktime, &txtime, &utxotxid, &utxovout, &utxovalue, utxosig, merkleroot);
-                if ( (newStakerActive= komodo_newStakerActive(nHeight, blocktime)) != 0 )
+                pblock->nTime = blocktime;
+                if ( (newStakerActive= komodo_newStakerActive(nHeight, pblock->nTime)) != 0 )
                     nFees += utxovalue;
                 //fprintf(stderr, "added to coinbase.%llu staking tx valueout.%llu\n", (long long unsigned)utxovalue, (long long unsigned)txStaked.vout[0].nValue);
-                uint32_t delay = ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH ? ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX : ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF;
-                if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, delay) == 0 )
+                if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF) == 0 )
                     return(0);
             }
 
@@ -679,7 +672,6 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                 pblocktemplate->vTxFees.push_back(txfees);
                 pblocktemplate->vTxSigOps.push_back(GetLegacySigOpCount(txStaked));
                 nFees += txfees;
-                pblock->nTime = blocktime;
                 //printf("staking PoS ht.%d t%u lag.%u\n",(int32_t)chainActive.LastTip()->GetHeight()+1,blocktime,(uint32_t)(GetAdjustedTime() - (blocktime-13)));
             } else return(0); //fprintf(stderr,"no utxos eligible for staking\n");         
         }
@@ -779,7 +771,7 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             txNew.vout[1].nValue = 0;
             // timelocks and commissions are currently incompatible due to validation complexity of the combination
         } 
-        else if ( fNotarisationBlock && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].nValue == 0 )
+        if ( fNotarisationBlock && ASSETCHAINS_NOTARY_PAY[0] != 0 && pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].nValue == 0 )
         {
             // Get the OP_RETURN for the notarisation
             uint8_t *script = (uint8_t *)&pblock->vtx[1].vout[1].scriptPubKey[0];
@@ -828,7 +820,7 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
         pblock->hashFinalSaplingRoot   = sapling_tree.root();
 
         // all Verus PoS chains need this data in the block at all times
-        if ( ASSETCHAINS_LWMAPOS || ASSETCHAINS_SYMBOL[0] == 0 || KOMODO_MININGTHREADS > 0 ) // ASSETCHAINS_STAKED == 0 ||
+        if ( ASSETCHAINS_LWMAPOS || ASSETCHAINS_SYMBOL[0] == 0 || ASSETCHAINS_STAKED == 0 || KOMODO_MININGTHREADS > 0 )
         {
             UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
             pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
@@ -1727,28 +1719,8 @@ void static BitcoinMiner()
             fprintf(stderr,"try %s Mining with %s\n",ASSETCHAINS_SYMBOL,solver.c_str());
         while (true)
         {
-            if (chainparams.MiningRequiresPeers()) //chainActive.LastTip()->GetHeight() != 235300 &&
-            {
-                //if ( ASSETCHAINS_SEED != 0 && chainActive.LastTip()->GetHeight() < 100 )
-                //    break;
-                // Busy-wait for the network to come online so we don't waste time mining
-                // on an obsolete chain. In regtest mode we expect to fly solo.
-                miningTimer.stop();
-                do {
-                    bool fvNodesEmpty;
-                    {
-                        //LOCK(cs_vNodes);
-                        fvNodesEmpty = vNodes.empty();
-                    }
-                    if (!fvNodesEmpty )//&& !IsInitialBlockDownload())
-                        break;
-                    MilliSleep(15000);
-                    //fprintf(stderr,"fvNodesEmpty %d IsInitialBlockDownload(%s) %d\n",(int32_t)fvNodesEmpty,ASSETCHAINS_SYMBOL,(int32_t)IsInitialBlockDownload());
-
-                } while (true);
-                //fprintf(stderr,"%s Found peers\n",ASSETCHAINS_SYMBOL);
-                miningTimer.start();
-            }
+            // wait for chain to sync and connect to some peers before trying to mine, thanks Verus. 
+            waitForPeers(Params());
             //
             // Create new block
             //
@@ -1759,11 +1731,6 @@ void static BitcoinMiner()
                 Mining_height = pindexPrev->GetHeight()+1;
                 Mining_start = (uint32_t)time(NULL);
             }
-            if ( ASSETCHAINS_SYMBOL[0] != 0 && ASSETCHAINS_STAKED == 0 )
-            {
-                //fprintf(stderr,"%s create new block ht.%d\n",ASSETCHAINS_SYMBOL,Mining_height);
-                //sleep(3);
-            }
 
 #ifdef ENABLE_WALLET
             // notaries always default to staking
@@ -1773,13 +1740,6 @@ void static BitcoinMiner()
 #endif
             if ( ptr == 0 )
             {
-                if ( 0 && !GetBoolArg("-gen",false))
-                {
-                    miningTimer.stop();
-                    c.disconnect();
-                    LogPrintf("KomodoMiner terminated\n");
-                    return;
-                }
                 static uint32_t counter;
                 if ( counter++ < 10 && ASSETCHAINS_STAKED == 0 )
                     fprintf(stderr,"created illegal blockB, retry\n");
@@ -1814,7 +1774,7 @@ void static BitcoinMiner()
                 }
             }
             // We cant increment nonce for proof transactions, as it modifes the coinbase, meaning CreateBlock must be called again to get a new valid proof to pass validation. 
-            if ( (ASSETCHAINS_SYMBOL[0] == 0 && notaryid >= 0 && Mining_height > nDecemberHardforkHeight ) || (ASSETCHAINS_STAKED != 0 && komodo_newStakerActive(Mining_height, pblock->nTime) != 0) ) //December 2019 hardfork
+            if ( (ASSETCHAINS_SYMBOL[0] == 0 && notaryid >= 0 && Mining_height > nDecemberHardforkHeight ) || (ASSETCHAINS_STAKED != 0 && komodo_newStakerActive(Mining_height, pblock->nTime) != 0 && KOMODO_MININGTHREADS == 0 ) ) //December 2019 hardfork
                 nExtraNonce = 0;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
             //fprintf(stderr,"Running KomodoMiner.%s with %u transactions in block\n",solver.c_str(),(int32_t)pblock->vtx.size());
@@ -1883,7 +1843,7 @@ void static BitcoinMiner()
                     {
                         HASHTarget = arith_uint256().SetCompact(KOMODO_MINDIFF_NBITS);
                         fprintf(stderr,"I am the chosen one for %s ht.%d\n",ASSETCHAINS_SYMBOL,pindexPrev->GetHeight()+1);
-                    } else fprintf(stderr,"duplicate at j.%d\n",j);
+                    } 
                 } else Mining_start = 0;
             } else Mining_start = 0;
 
@@ -1958,13 +1918,13 @@ void static BitcoinMiner()
                     }
                     if ( IS_KOMODO_NOTARY != 0 && B.nTime > GetAdjustedTime() )
                     {
-                        //fprintf(stderr,"need to wait %d seconds to submit block\n",(int32_t)(B.nTime - GetAdjustedTime()));
+                        fprintf(stderr,"need to wait %d seconds to submit block\n",(int32_t)(B.nTime - GetAdjustedTime()));
                         while ( GetAdjustedTime() < B.nTime-2 )
                         {
                             sleep(1);
                             if ( chainActive.Height() >= Mining_height )
                             {
-                                fprintf(stderr,"new block arrived\n");
+                                fprintf(stderr,"new block arrived %d seconds until our block elegible\n",(int32_t)(B.nTime - GetAdjustedTime()));
                                 return(false);
                             }
                         }
@@ -1980,19 +1940,16 @@ void static BitcoinMiner()
                     }
                     else if ( KOMODO_MININGTHREADS == 0 )
                     {
-                        if ( KOMODO_MININGTHREADS == 0 ) // we are staking 
+                        // Rebuild block if the found solution for PoS meets POW target. This is an edge case in early chain, or if there is near 0 PoW hashrate.
+                        if ( ASSETCHAINS_STAKED < 100 && komodo_newStakerActive(Mining_height,pblock->nTime) != 0 && h < hashTarget_POW )
                         {
-                            // Need to rebuild block if the found solution for PoS, meets POW target, otherwise it will be rejected. 
-                            if ( ASSETCHAINS_STAKED < 100 && komodo_newStakerActive(Mining_height,pblock->nTime) != 0 && h < hashTarget_POW )
-                            {
-                                fprintf(stderr, "[%s:%d] PoS block.%u meets POW_Target.%u building new block\n", ASSETCHAINS_SYMBOL, Mining_height, h.GetCompact(), hashTarget_POW.GetCompact());
-                                return(false);
-                            }
-                            if ( komodo_waituntilelegible(pblock, chainActive.LastTip(), Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
-                                return(false);
+                            fprintf(stderr, "[%s:%d] PoS block.%u meets POW_Target.%u building new block\n", ASSETCHAINS_SYMBOL, Mining_height, h.GetCompact(), hashTarget_POW.GetCompact());
+                            return(false);
                         }
+                        if ( komodo_waituntilelegible(pblock, chainActive.LastTip(), Mining_height, ASSETCHAINS_STAKED_BLOCK_FUTURE_MAX) == 0 )
+                            return(false);
                         uint256 tmp = B.GetHash();
-                        fprintf(stderr,"[%s:%d] mined block ",ASSETCHAINS_SYMBOL,Mining_height);
+                        fprintf(stderr,"[%s:%d] staked block ",ASSETCHAINS_SYMBOL,Mining_height);
                         int32_t z; for (z=31; z>=0; z--)
                             fprintf(stderr,"%02x",((uint8_t *)&tmp)[z]);
                         fprintf(stderr, "\n");

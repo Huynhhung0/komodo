@@ -507,5 +507,6 @@ void komodo_init(int32_t height)
         //    Minerids[i] = -2;
         didinit = 1;
         komodo_stateupdate(0,0,0,0,zero,0,0,0,0,0,0,0,0,0,0,zero,0);
+        KOMODO_INITDONE = (uint32_t)time(NULL);
     }
 }

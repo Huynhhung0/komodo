@@ -53,22 +53,23 @@ def def_credentials(chain):
 rpc = def_credentials('KMD')
 pp = pprint.PrettyPrinter(indent=2)
 
-notarynames = [ "0dev1_jl777", "0dev2_kolo", "0dev3_kolo", "0dev4_decker_AR", "a-team_SH", "artik_AR", "artik_EU", "artik_NA", "artik_SH", "badass_EU", "badass_NA", "batman_AR", "batman_SH", "ca333", "chainmakers_EU", "chainmakers_NA", "chainstrike_SH", "cipi_AR", "cipi_NA", "crackers_EU", "crackers_NA", "dwy_EU", "emmanux_SH", "etszombi_EU", "fullmoon_AR", "fullmoon_NA", "fullmoon_SH", "goldenman_EU", "indenodes_AR", "indenodes_EU", "indenodes_NA", "indenodes_SH", "jackson_AR", "jeezy_EU", "karasugoi_NA", "komodoninja_EU", "komodoninja_SH", "komodopioneers_SH", "libscott_SH", "lukechilds_AR", "madmax_AR", "meshbits_AR", "meshbits_SH", "metaphilibert_AR", "metaphilibert_SH", "patchkez_SH", "pbca26_NA", "peer2cloud_AR", "peer2cloud_SH", "polycryptoblog_NA", "hyper_AR", "hyper_EU", "hyper_SH", "hyper_NA", "popcornbag_AR", "popcornbag_NA", "alien_AR", "alien_EU", "thegaltmines_NA", "titomane_AR", "titomane_EU", "titomane_SH", "webworker01_NA", "xrobesx_NA" ]
+#season 2 notarynames = [ "0dev1_jl777", "0dev2_kolo", "0dev3_kolo", "0dev4_decker_AR", "a-team_SH", "artik_AR", "artik_EU", "artik_NA", "artik_SH", "badass_EU", "badass_NA", "batman_AR", "batman_SH", "ca333", "chainmakers_EU", "chainmakers_NA", "chainstrike_SH", "cipi_AR", "cipi_NA", "crackers_EU", "crackers_NA", "dwy_EU", "emmanux_SH", "etszombi_EU", "fullmoon_AR", "fullmoon_NA", "fullmoon_SH", "goldenman_EU", "indenodes_AR", "indenodes_EU", "indenodes_NA", "indenodes_SH", "jackson_AR", "jeezy_EU", #"karasugoi_NA", "komodoninja_EU", "komodoninja_SH", "komodopioneers_SH", "libscott_SH", "lukechilds_AR", "madmax_AR", "meshbits_AR", "meshbits_SH", "metaphilibert_AR", "metaphilibert_SH", "patchkez_SH", "pbca26_NA", "peer2cloud_AR", "peer2cloud_SH", "polycryptoblog_NA", "hyper_AR", "hyper_EU", "hyper_SH", "hyper_NA", "popcornbag_AR", "popcornbag_NA", "alien_AR", "alien_EU", "thegaltmines_NA", "titomane_AR", "titomane_EU", "titomane_SH", "webworker01_NA", "xrobesx_NA" ]
+notarynames = [ "madmax_NA", "alright_AR","strob_NA", "dwy_EU", "phm87_SH","chainmakers_NA", "indenodes_EU", "blackjok3r_SH", "chainmakers_EU", "titomane_AR", "fullmoon_SH", "indenodes_NA", "chmex_EU", "metaphilibert_SH", "ca333_DEV", "cipi_NA", "pungocloud_SH", "voskcoin_EU", "decker_DEV", "cryptoeconomy_EU", "etszombi_EU","karasugoi_NA", "pirate_AR", "metaphilibert_AR", "zatjum_SH", "madmax_AR", "lukechilds_NA", "cipi_AR", "tonyl_AR", "infotech_DEV", "fullmoon_NA", 
+"etszombi_AR", "node-9_EU", "phba2061_EU", "indenodes_AR", "and1-89_EU", "komodopioneers_SH", "komodopioneers_EU", "d0ct0r_NA", "kolo_DEV", "peer2cloud_AR", "webworker01_SH", "webworker01_NA", "pbca26_NA", "indenodes_SH", "pirate_NA", "lukechilds_AR", "dragonhound_NA", "fullmoon_AR", "chainzilla_SH", "titomane_EU", "jeezy_EU", "titomane_SH", "alien_AR", "pirate_EU", "thegaltmines_NA", "computergenie_NA", "nutellalicka_SH", "chainstrike_SH", "dwy_SH", "alien_EU", "gt_AR", "patchkez_SH", "decker_AR" ]
 notaries = 64 * [0]
 
-startheight =  821657 #Second time filter for assetchains (block 821657) for KMD its 814000
-stopheight = 1307200
+startheight =  1444000 #Second time filter for assetchains (block 821657) for KMD its 814000
+stopheight = rpc.getblockcount()
 for i in range(startheight,stopheight):
     ret = rpc.getNotarisationsForBlock(i)
     KMD = ret['KMD']
     if len(KMD) > 0:
         for obj in KMD:
-            #for now skip KMD for this. As official stats are from BTC chain
-            # this can be reversed to !== to count KMD numbers :)
+            score = 1
             if obj['chain'] == 'KMD':
-                continue;
+                score = 10
             for notary in obj['notaries']:
-                notaries[notary] = notaries[notary] + 1
+                notaries[notary] = notaries[notary] + score
 
 i = 0
 SH = [] 
@@ -78,7 +79,7 @@ NA = []
 for notary in notaries:
     tmpnotary = {}
     tmpnotary['node'] = notarynames[i]
-    tmpnotary['ac_count'] = notary
+    tmpnotary['score'] = notary
     if notarynames[i].endswith('SH'):
         SH.append(tmpnotary)
     elif notarynames[i].endswith('AR'):
@@ -90,9 +91,9 @@ for notary in notaries:
     i = i + 1
 
 regions = {}
-regions['SH'] = sorted(SH, key=lambda k: k['ac_count'], reverse=True)
-regions['AR'] = sorted(AR, key=lambda k: k['ac_count'], reverse=True)
-regions['EU'] = sorted(EU, key=lambda k: k['ac_count'], reverse=True)
-regions["NA"] = sorted(NA, key=lambda k: k['ac_count'], reverse=True)
+regions['SH'] = sorted(SH, key=lambda k: k['score'], reverse=True)
+regions['AR'] = sorted(AR, key=lambda k: k['score'], reverse=True)
+regions['EU'] = sorted(EU, key=lambda k: k['score'], reverse=True)
+regions["NA"] = sorted(NA, key=lambda k: k['score'], reverse=True)
 
 pp.pprint(regions)
