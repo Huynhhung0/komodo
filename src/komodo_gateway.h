@@ -816,9 +816,13 @@ int32_t komodo_check_deposit(int32_t height,const CBlock& block,CBlockIndex *pin
             checktoshis = 0;
             if ( (ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_FOUNDERS_REWARD != 0 ) && height > 1 )
             {
-                int32_t skipstaketx = ((komodo_newStakerActive(height, block.nTime) != 0) && (DecodeStakingOpRet(block.vtx.back().vout.back().scriptPubKey, merkleroot) != 0));
-                if ( (checktoshis= komodo_checkcommission((CBlock *)&block,height,skipstaketx)) < 0 )
+                int32_t minsigs, skipstaketx = ((komodo_newStakerActive(height, block.nTime) != 0) && (DecodeStakingOpRet(block.vtx.back().vout.back().scriptPubKey, merkleroot) != 0));
+                // estimate what we can for notarypay, the full checks in connect block will catch anything that gets though here
+                if ( ASSETCHAINS_NOTARY_PAY[0] != 0 && block.vtx.size() >= 2 && block.vtx[0].vout.size() > (minsigs= LABSMINSIGS(0,block.nTime)) && block.vtx[1].vin.size() >= minsigs )
+                    checktoshis+= komodo_notarypayamount(height, block.vtx[1].vin.size())*block.vtx[1].vin.size();
+                if ( (checktoshis+= komodo_checkcommission((CBlock *)&block,height,skipstaketx)) < 0 )
                 {
+                    
                     fprintf(stderr,"ht.%d checktoshis %.8f overflow.%d total %.8f strangeout.%d skipstaketx.%d\n",height,dstr(checktoshis),overflow,dstr(total),strangeout,skipstaketx);
                     return(-1);
                 }
