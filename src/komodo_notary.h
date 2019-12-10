@@ -66,25 +66,25 @@ const char *Notaries_genesis[][2] =
 int32_t getkmdseason(int32_t height)
 {
     if ( height <= KMD_SEASON_HEIGHTS[0] )
-        return(1);
+        return(0);
     for (int32_t i = 1; i < NUM_KMD_SEASONS; i++)
     {
         if ( height <= KMD_SEASON_HEIGHTS[i] && height > KMD_SEASON_HEIGHTS[i-1] )
-            return(i+1);
+            return(i);
     }
-    return(0);
+    return(-1);
 }
 
 int32_t getacseason(uint32_t timestamp)
 {
     if ( timestamp <= KMD_SEASON_TIMESTAMPS[0] )
-        return(1);
+        return(0);
     for (int32_t i = 1; i < NUM_KMD_SEASONS; i++)
     {
         if ( timestamp <= KMD_SEASON_TIMESTAMPS[i] && timestamp > KMD_SEASON_TIMESTAMPS[i-1] )
-            return(i+1);
+            return(i);
     }
-    return(0);
+    return(-1);
 }
 
 int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp)
@@ -97,10 +97,9 @@ int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestam
     else if ( ASSETCHAINS_SYMBOL[0] == 0 )
         timestamp = 0;
 
-    // If this chain is not a staked chain, use the normal Komodo logic to determine notaries. This allows KMD to still sync and use its proper pubkeys for dPoW.
     if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 0 )
     {
-        int32_t kmd_season = 0;
+        int32_t kmd_season = -1;
         if ( ASSETCHAINS_SYMBOL[0] == 0 )
         {
             // This is KMD, use block heights to determine the KMD notary season.. 
@@ -112,33 +111,28 @@ int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestam
             // This is a non LABS assetchain, use timestamp to detemine notary pubkeys. 
             kmd_season = getacseason(timestamp);
         }
-        if ( kmd_season != 0 )
+        if ( kmd_season >= 0 )
         {
-            if ( didinit[kmd_season-1] == 0 )
+            if ( didinit[kmd_season] == 0 )
             {
                 for (i=0; i<NUM_KMD_NOTARIES; i++) 
-                    decode_hex(kmd_pubkeys[kmd_season-1][i],33,(char *)notaries_elected[kmd_season-1][i][1]);
+                    decode_hex(kmd_pubkeys[kmd_season][i],33,(char *)notaries_elected[kmd_season][i][1]);
                 if ( ASSETCHAINS_PRIVATE != 0 )
                 {
                     // this is PIRATE, we need to populate the address array for the notary exemptions. 
                     for (i = 0; i<NUM_KMD_NOTARIES; i++)
-                        pubkey2addr((char *)NOTARY_ADDRESSES[kmd_season-1][i],(uint8_t *)kmd_pubkeys[kmd_season-1][i]);
+                        pubkey2addr((char *)NOTARY_ADDRESSES[kmd_season][i],(uint8_t *)kmd_pubkeys[kmd_season][i]);
                 }
-                didinit[kmd_season-1] = 1;
+                didinit[kmd_season] = 1;
             }
-            memcpy(pubkeys,kmd_pubkeys[kmd_season-1],NUM_KMD_NOTARIES * 33);
+            memcpy(pubkeys,kmd_pubkeys[kmd_season],NUM_KMD_NOTARIES * 33);
             return(NUM_KMD_NOTARIES);
         }
-    }
-    else if ( timestamp != 0 )
-    { 
-        // here we can activate our pubkeys for LABS chains everythig is in notaries_staked.cpp
-        int32_t labs_era; int8_t numSN;
-        uint8_t staked_pubkeys[64][33];
-        labs_era = get_LABS_ERA(timestamp);
-        numSN = num_LABSNotaries(staked_pubkeys,labs_era);
-        memcpy(pubkeys,staked_pubkeys,numSN * 33);
-        return(numSN);
+    } 
+    else 
+    {
+        int32_t num = num_LABSNotaries((uint8_t*)pubkeys[0],get_LABS_ERA(timestamp));
+        return(num);
     }
 
     htind = height / KOMODO_ELECTION_GAP;
@@ -364,7 +358,7 @@ int32_t komodo_notarized_height(int32_t *prevMoMheightp,uint256 *hashp,uint256 *
 
 int32_t komodo_dpowconfs(int32_t txheight,int32_t numconfs)
 {
-    static int32_t hadnotarization;
+    static int32_t hadnotarization; 
     char symbol[KOMODO_ASSETCHAIN_MAXLEN],dest[KOMODO_ASSETCHAIN_MAXLEN]; struct komodo_state *sp;
     if ( KOMODO_DPOWCONFS != 0 && txheight > 0 && numconfs > 0 && (sp= komodo_stateptr(symbol,dest)) != 0 )
     {
