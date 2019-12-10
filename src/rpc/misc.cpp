@@ -74,7 +74,6 @@ extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 uint32_t komodo_segid32(char *coinaddr);
 int64_t komodo_coinsupply(int64_t *zfundsp,int64_t *sproutfundsp,int32_t height);
 int32_t notarizedtxid_height(char *dest,char *txidstr,int32_t *kmdnotarized_heightp);
-int8_t LABS_NotaryID(std::string &notaryname, char *Raddress);
 uint64_t komodo_notarypayamount(int32_t nHeight, int32_t notarycount);
 int32_t komodo_notaries(uint8_t pubkeys[64][33],int32_t height,uint32_t timestamp);
 
@@ -86,53 +85,32 @@ extern uint32_t ASSETCHAINS_MAGIC,ASSETCHAINS_ALGO;
 extern uint64_t ASSETCHAINS_COMMISSION,ASSETCHAINS_SUPPLY;
 extern int32_t ASSETCHAINS_LWMAPOS,ASSETCHAINS_SAPLING,ASSETCHAINS_STAKED;
 extern uint64_t ASSETCHAINS_ENDSUBSIDY[],ASSETCHAINS_REWARD[],ASSETCHAINS_HALVING[],ASSETCHAINS_DECAY[],ASSETCHAINS_NOTARY_PAY[];
-extern std::string NOTARY_PUBKEY,NOTARY_ADDRESS; extern uint8_t NOTARY_PUBKEY33[];
-
-int32_t getera(int timestamp)
-{
-    for (int32_t i = 0; i < NUM_LABS_ERAS; i++) {
-        if ( timestamp <= LABS_NOTARIES_TIMESTAMP[i] ) {
-            return(i);
-        }
-    }
-    return(0);
-}
+extern std::string NOTARY_PUBKEY; extern uint8_t NOTARY_PUBKEY33[];
 
 UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-    if (fHelp || params.size() != 0)
-      throw runtime_error("getiguanajson\nreturns json for iguana, for the current ERA.");
+    if (fHelp || params.size() > 1)
+        throw runtime_error("getiguanajson <era> \n"
+            "returns json for iguana, for the era requeted or active era with no param.");
 
     UniValue json(UniValue::VOBJ);
     UniValue seeds(UniValue::VARR);
     UniValue notaries(UniValue::VARR);
-    // get the current era, use local time for now.
-    // should ideally take blocktime of last known block?
-    int now = time(NULL);
-    int32_t era = getera(now);
-
-    // loop over seeds array and push back to json array for seeds
-    for (int8_t i = 0; i < 8; i++) {
+    
+    int32_t era = (params.size() == 1 ? atoll(params[1].get_str().c_str()) : get_LABS_ERA(GetTime()));
+    if ( era < 0 )
+        return json;
+    for (int8_t i = 0; i < 8; i++)
         seeds.push_back(iguanaSeeds[i][0]);
-    }
-
-    // loop over era's notaries and push back each pair to the notary array
-    for (int8_t i = 0; i < num_notaries_LABS[era]; i++) {
+    for (int8_t i = 0; i < num_notaries_LABS[era]; i++) 
+    {
         UniValue notary(UniValue::VOBJ);
         notary.push_back(Pair(notaries_LABS[era][i][0],notaries_LABS[era][i][1]));
         notaries.push_back(notary);
     }
-
-    // get the min sigs .. this always rounds UP so min sigs in iguana is +1 min sigs in komodod, due to some rounding error.
-    int minsigs;
-    if ( num_notaries_LABS[era]/5 > overrideMinSigs )
-        minsigs = (num_notaries_LABS[era] / 5) + 1;
-    else
-        minsigs = overrideMinSigs;
-
     json.push_back(Pair("port",iguanaPort));
     json.push_back(Pair("BTCminsigs",BTCminsigs));
-    json.push_back(Pair("minsigs",minsigs));
+    json.push_back(Pair("minsigs",LABSMINSIGS(num_notaries_LABS[era],LABS_NOTARIES_TIMESTAMP[era])));
     json.push_back(Pair("seeds",seeds));
     json.push_back(Pair("notaries",notaries));
     return json;
@@ -140,22 +118,24 @@ UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
 UniValue getnotarysendmany(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-    if (fHelp || params.size() > 1)
+    if (fHelp || params.size() > 2)
       throw runtime_error(
-          "getnotarysendmany\n"
-          "Returns a sendmany JSON array with all current notaries Raddress's.\n"
+          "getnotarysendmany amount <era>\n"
+          "Returns a sendmany JSON with labs notary address for era supplied or currrent era.\n"
           "\nExamples:\n"
-          + HelpExampleCli("getnotarysendmany", "10")
+          + HelpExampleCli("getnotarysendmany", "10 1")
           + HelpExampleRpc("getnotarysendmany", "10")
       );
-    int amount = 0;
-    if ( params.size() == 1 ) {
-        amount = params[0].get_int();
-    }
-
-    int era = getera(time(NULL));
-
+    int32_t amount = 0, era = get_LABS_ERA(GetTime()); 
     UniValue ret(UniValue::VOBJ);
+    
+    if ( params.size() >= 1 ) 
+        amount = atoll(params[0].get_str().c_str());
+    if ( params.size() == 2 ) 
+        era = atoll(params[1].get_str().c_str());
+    if ( era < 0 )
+        return ret;
+    
     for (int i = 0; i<num_notaries_LABS[era]; i++)
     {
         char Raddress[18]; uint8_t pubkey33[33];
@@ -176,10 +156,10 @@ UniValue geterablockheights(const UniValue& params, bool fHelp, const CPubKey& m
       
     CBlockIndex *pindex; int8_t lastera,era = 0; UniValue ret(UniValue::VOBJ);
 
-    for (size_t i = 1; i < chainActive.LastTip()->GetHeight(); i++)
+    for (size_t i = 1; i < chainActive.Height(); i++)
     {
         pindex = chainActive[i];
-        era = getera(pindex->nTime)+1;
+        era = get_LABS_ERA(pindex->nTime);
         if ( era > lastera )
         {
             char str[16];
@@ -188,13 +168,12 @@ UniValue geterablockheights(const UniValue& params, bool fHelp, const CPubKey& m
             lastera = era;
         }
     }
-    
     return(ret);
 }
 
 UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
-    uint256 notarized_hash,notarized_desttxid; int32_t prevMoMheight,notarized_height,longestchain,kmdnotarized_height,txid_height;
+    uint256 notarized_hash,notarized_desttxid; int32_t prevMoMheight,notarized_height=0,longestchain,kmdnotarized_height,txid_height=0;
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getinfo\n"
@@ -293,13 +272,15 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
     obj.push_back(Pair("testnet",       Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
-     if ( NOTARY_PUBKEY33[0] != 0 ) {
-        char pubkeystr[65]; int32_t notaryid; std::string notaryname;
-        if ( (notaryid= LABS_NotaryID(notaryname, (char *)NOTARY_ADDRESS.c_str())) != -1 ) {
+    if ( NOTARY_PUBKEY33[0] != 0 ) {
+        char pubkeystr[65]; int32_t era, notaryid;
+        if ( (notaryid= komodo_whoami(pubkeystr,(int32_t)chainActive.Height(),komodo_chainactive_timestamp())) >= 0 )  {
             obj.push_back(Pair("notaryid",        notaryid));
-            obj.push_back(Pair("notaryname",      notaryname));
-        } else if( (notaryid= komodo_whoami(pubkeystr,(int32_t)chainActive.LastTip()->GetHeight(),komodo_chainactive_timestamp())) >= 0 )  {
-            obj.push_back(Pair("notaryid",        notaryid));
+            if ( IS_LABS_NOTARY != 0 )
+            {
+                if ( (era= get_LABS_ERA(komodo_chainactive_timestamp())) >= 0 )
+                    obj.push_back(Pair("notaryname", notaries_LABS[era][notaryid][0]));
+            }
             if ( KOMODO_LASTMINED != 0 )
                 obj.push_back(Pair("lastmined", KOMODO_LASTMINED));
         }
@@ -313,8 +294,6 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
     obj.push_back(Pair("rpcport",        ASSETCHAINS_RPCPORT));
     if ( ASSETCHAINS_SYMBOL[0] != 0 )
     {
-        if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 )
-            obj.push_back(Pair("StakedEra",        LABS_ERA));
         //obj.push_back(Pair("name",        ASSETCHAINS_SYMBOL));
         obj.push_back(Pair("magic",        (int)ASSETCHAINS_MAGIC));
         obj.push_back(Pair("premine",        ASSETCHAINS_SUPPLY));
@@ -1670,6 +1649,9 @@ static const CRPCCommand commands[] =
     { "util",               "z_validateaddress",      &z_validateaddress,      true  }, /* uses wallet if enabled */
     { "util",               "createmultisig",         &createmultisig,         true  },
     { "util",               "verifymessage",          &verifymessage,          true  },
+    { "labs",               "getiguanajson",          &getiguanajson,          true  },
+    { "labs",               "getnotarysendmany",      &getnotarysendmany,      true  },
+    { "labs",               "geterablockheights",     &geterablockheights,     true  },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
