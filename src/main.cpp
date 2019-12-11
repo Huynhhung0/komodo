@@ -1435,16 +1435,16 @@ int32_t komodo_isnotaryvout(char *coinaddr,uint32_t tiptime) // from ac_private 
     if ( strcmp(coinaddr,CRYPTO777_KMDADDR) == 0 )
         return(1);
     int32_t season = getacseason(tiptime);
-    if ( NOTARY_ADDRESSES[season-1][0][0] == 0 )
+    if ( NOTARY_ADDRESSES[season][0][0] == 0 )
     {
         uint8_t pubkeys[64][33];
         komodo_notaries(pubkeys,0,tiptime);
     }
     for (int32_t i = 0; i < NUM_KMD_NOTARIES; i++) 
     {
-        if ( strcmp(coinaddr,NOTARY_ADDRESSES[season-1][i]) == 0 )
+        if ( strcmp(coinaddr,NOTARY_ADDRESSES[season][i]) == 0 )
         {
-            //fprintf(stderr, "coinaddr.%s notaryaddress[%i].%s\n",coinaddr,i,NOTARY_ADDRESSES[season-1][i]);
+            //fprintf(stderr, "coinaddr.%s notaryaddress[%i].%s\n",coinaddr,i,NOTARY_ADDRESSES[season][i]);
             return(1);
         }
     }
