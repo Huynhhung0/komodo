@@ -201,18 +201,15 @@ int32_t komodo_longestchain()
             CNodeStateStats statestats;
             if ( !GetNodeStateStats(stats.nodeid,statestats) )
                 continue;
-            //if ( statestats.nSyncHeight > 0 )
-            //    continue;
+            if ( statestats.nSyncHeight < 0 )
+                continue;
             ht = 0;
             if ( stats.nStartingHeight > ht )
                 ht = stats.nStartingHeight;
             if ( statestats.nSyncHeight > ht )
                 ht = statestats.nSyncHeight;
             if ( statestats.nCommonHeight > ht )
-            {
                 ht = statestats.nCommonHeight;
-                n++;
-            }
             if ( maxheight == 0 || ht > maxheight*1.01 )
                 maxheight = ht, num = 1;
             else if ( ht > maxheight*0.99 )
