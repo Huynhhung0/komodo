@@ -209,7 +209,10 @@ int32_t komodo_longestchain()
             if ( statestats.nSyncHeight > ht )
                 ht = statestats.nSyncHeight;
             if ( statestats.nCommonHeight > ht )
+            {
                 ht = statestats.nCommonHeight;
+                n++;
+            }
             if ( maxheight == 0 || ht > maxheight*1.01 )
                 maxheight = ht, num = 1;
             else if ( ht > maxheight*0.99 )
