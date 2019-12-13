@@ -19,6 +19,7 @@
 
 UniValue AssetOrders(uint256 refassetid, CPubKey pk, uint8_t additionalEvalCode)
 {
+    static uint256 zero;
 	UniValue result(UniValue::VARR);  
 
     struct CCcontract_info *cpAssets, assetsC;
@@ -34,7 +35,7 @@ UniValue AssetOrders(uint256 refassetid, CPubKey pk, uint8_t additionalEvalCode)
 		std::vector<uint8_t> origpubkey;
 		CTransaction ordertx;
 		uint8_t funcid, evalCode;
-		char numstr[32], funcidstr[16], origaddr[64], origtokenaddr[64];
+		char numstr[32], funcidstr[16], origaddr[64], origtokenaddr[64], assetidstr[65];
 
         txid = it->first.txhash;
         LOGSTREAM("ccassets", CCLOG_DEBUG2, stream << "addOrders() checking txid=" << txid.GetHex() << std::endl);
@@ -45,8 +46,8 @@ UniValue AssetOrders(uint256 refassetid, CPubKey pk, uint8_t additionalEvalCode)
             {
                 LOGSTREAM("ccassets", CCLOG_DEBUG2, stream << "addOrders() checking ordertx.vout.size()=" << ordertx.vout.size() << " funcid=" << (char)(funcid ? funcid : ' ') << " assetid=" << assetid.GetHex() << std::endl);
 
-                if (pk == CPubKey() && (refassetid == zeroid || assetid == refassetid)  // tokenorders
-                    || pk != CPubKey() && pk == pubkey2pk(origpubkey) && (funcid == 'S' || funcid == 's'))  // mytokenorders, returns only asks (is this correct?)
+                if (refassetid != zero && assetid == refassetid ||
+                    pk != CPubKey() && pk == pubkey2pk(origpubkey) && (funcid == 'S' || funcid == 's'))
                 {
 
                     LOGSTREAM("ccassets", CCLOG_DEBUG2, stream << "addOrders() it->first.index=" << it->first.index << " ordertx.vout[it->first.index].nValue=" << ordertx.vout[it->first.index].nValue << std::endl);
@@ -60,7 +61,7 @@ UniValue AssetOrders(uint256 refassetid, CPubKey pk, uint8_t additionalEvalCode)
                     funcidstr[0] = funcid;
                     funcidstr[1] = 0;
                     item.push_back(Pair("funcid", funcidstr));
-                    item.push_back(Pair("txid", txid.GetHex()));
+                    item.push_back(Pair("txid", uint256_str(assetidstr, txid)));
                     item.push_back(Pair("vout", (int64_t)it->first.index));
                     if (funcid == 'b' || funcid == 'B')
                     {
@@ -76,17 +77,18 @@ UniValue AssetOrders(uint256 refassetid, CPubKey pk, uint8_t additionalEvalCode)
                         sprintf(numstr, "%llu", (long long)ordertx.vout[0].nValue);
                         item.push_back(Pair("askamount", numstr));
                     }
-                    if (origpubkey.size() == CPubKey::COMPRESSED_PUBLIC_KEY_SIZE)
+                    if (origpubkey.size() == 33)
                     {
                         GetCCaddress(cp, origaddr, pubkey2pk(origpubkey));  
                         item.push_back(Pair("origaddress", origaddr));
                         GetTokensCCaddress(cpTokens, origtokenaddr, pubkey2pk(origpubkey));
                         item.push_back(Pair("origtokenaddress", origtokenaddr));
+
                     }
                     if (assetid != zeroid)
-                        item.push_back(Pair("tokenid", assetid.GetHex()));
+                        item.push_back(Pair("tokenid", uint256_str(assetidstr, assetid)));
                     if (assetid2 != zeroid)
-                        item.push_back(Pair("otherid", assetid2.GetHex()));
+                        item.push_back(Pair("otherid", uint256_str(assetidstr, assetid2)));
                     if (price > 0)
                     {
                         if (funcid == 's' || funcid == 'S' || funcid == 'e' || funcid == 'e')

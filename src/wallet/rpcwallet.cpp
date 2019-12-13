@@ -116,24 +116,6 @@ void EnsureWalletIsUnlocked()
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
 
-void Lock2NSPV(const CPubKey &pk)
-{
-    if (!pk.IsValid())
-    {
-        ENTER_CRITICAL_SECTION(cs_main);
-        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
-    }
-}
-
-void Unlock2NSPV(const CPubKey &pk)
-{
-    if (!pk.IsValid())
-    {
-        LEAVE_CRITICAL_SECTION(cs_main);
-        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
-    }
-}
-
 uint64_t komodo_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint256 hash,int32_t n,int32_t checkheight,uint64_t checkvalue,int32_t tipheight);
 
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
@@ -1542,15 +1524,11 @@ UniValue sendmany(const UniValue& params, bool fHelp, const CPubKey& mypk)
     for (const std::string& name_ : keys) {
         CTxDestination dest = DecodeDestination(name_);
         if (!IsValidDestination(dest)) {
-            CScript tmpspk;
-            tmpspk << ParseHex(name_) << OP_CHECKSIG;
-            if ( !ExtractDestination(tmpspk, dest, true) )
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address or pubkey: ") + name_);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address: ") + name_);
         }
+
         CScript scriptPubKey = GetScriptForDestination(dest);
-        
         CAmount nAmount = AmountFromValue(sendTo[i]);
-        i++;
         if (nAmount <= 0)
             throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
         totalAmount += nAmount;
@@ -1564,6 +1542,7 @@ UniValue sendmany(const UniValue& params, bool fHelp, const CPubKey& mypk)
 
         CRecipient recipient = {scriptPubKey, nAmount, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);
+        i++;
     }
 
     EnsureWalletIsUnlocked();
@@ -5572,9 +5551,9 @@ UniValue z_listoperationids(const UniValue& params, bool fHelp, const CPubKey& m
 int32_t decode_hex(uint8_t *bytes,int32_t n,char *hex);
 extern std::string NOTARY_PUBKEY;
 
-int32_t komodo_notaryvin(CMutableTransaction &txNew,uint8_t *notarypub33, void *pTr)
+int32_t komodo_notaryvin(CMutableTransaction &txNew,uint8_t *notarypub33)
 {
-    set<CBitcoinAddress> setAddress; uint8_t *script,utxosig[128]; uint256 utxotxid; uint64_t utxovalue; int32_t i,siglen=0,nMinDepth = 0,nMaxDepth = 9999999; vector<COutput> vecOutputs; uint32_t utxovout,eligible,earliest = 0; CScript best_scriptPubKey; bool fNegative,fOverflow;
+    set<CBitcoinAddress> setAddress; uint8_t *script,utxosig[128]; uint256 utxotxid; uint64_t utxovalue; int32_t i,siglen=0,nMinDepth = 1,nMaxDepth = 9999999; vector<COutput> vecOutputs; uint32_t utxovout,eligible,earliest = 0; CScript best_scriptPubKey; bool fNegative,fOverflow;
     bool signSuccess; SignatureData sigdata; uint64_t txfee; uint8_t *ptr;
     auto consensusBranchId = CurrentEpochBranchId(chainActive.Height() + 1, Params().GetConsensus());
     if (!EnsureWalletIsAvailable(0))
@@ -5625,7 +5604,7 @@ int32_t komodo_notaryvin(CMutableTransaction &txNew,uint8_t *notarypub33, void *
         //fprintf(stderr,"check %s/v%d %llu\n",(char *)utxotxid.GetHex().c_str(),utxovout,(long long)utxovalue);
 
         txNew.vin.resize(1);
-        txNew.vout.resize((pTr!=0)+1);
+        txNew.vout.resize(1);
         txfee = utxovalue / 2;
         //for (i=0; i<32; i++)
         //    ((uint8_t *)&revtxid)[i] = ((uint8_t *)&utxotxid)[31 - i];
@@ -5633,13 +5612,6 @@ int32_t komodo_notaryvin(CMutableTransaction &txNew,uint8_t *notarypub33, void *
         txNew.vin[0].prevout.n = utxovout;
         txNew.vout[0].nValue = utxovalue - txfee;
         txNew.vout[0].scriptPubKey = CScript() << ParseHex(CRYPTO777_PUBSECPSTR) << OP_CHECKSIG;
-        if ( pTr != 0 )
-        {
-            void **p = (void**)pTr;
-            txNew.vout[1].nValue = 0;
-            txNew.vout[1].scriptPubKey = *(CScript*)p[0];
-            txNew.nLockTime = (uint32_t)(unsigned long long)p[1];
-        }
         CTransaction txNewConst(txNew);
         signSuccess = ProduceSignature(TransactionSignatureCreator(&keystore, &txNewConst, 0, utxovalue, SIGHASH_ALL), best_scriptPubKey, sigdata, consensusBranchId);
         if (!signSuccess)
@@ -5780,6 +5752,9 @@ UniValue CCaddress(struct CCcontract_info *cp,char *name,std::vector<unsigned ch
 }
 
 bool pubkey2addr(char *destaddr,uint8_t *pubkey33);
+extern int32_t IS_KOMODO_NOTARY,IS_STAKED_NOTARY,USE_EXTERNAL_PUBKEY;
+extern uint8_t NOTARY_PUBKEY33[];
+extern std::string NOTARY_PUBKEY,NOTARY_ADDRESS;
 
 UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
@@ -5853,51 +5828,6 @@ UniValue setpubkey(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("address", NOTARY_ADDRESS));
         result.push_back(Pair("pubkey", NOTARY_PUBKEY));
-    }
-    return result;
-}
-
-UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk)
-{
-    UniValue result(UniValue::VOBJ);
-    if ( fHelp || params.size() > 1 )
-        throw runtime_error(
-        "setstakingsplit\n"
-        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase.\n"
-        "\nArguments:\n"
-        "1. \"split_percentage\"         (numeric) split ratio range 0-100.\n"
-        "\nResult:\n"
-        "  {\n"
-        "    \"split_percentage\" : \"split_percentage\"     (numeric) range 0-100\n"
-        "  }\n"
-        "\nExamples:\n"
-        + HelpExampleCli("setstakingsplit", "0")
-        + HelpExampleRpc("setstakingsplit", "100")
-    );
-    
-    LOCK(cs_main);
-    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) != 1 ) 
-    {
-        throw runtime_error("New PoS64 staker not active yet\n");
-    }
-    if ( params.size() == 0 )
-    {
-        result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
-    }
-    else
-    {
-        std::string strperc = params[0].get_str();
-        int32_t perc = std::stoi(strperc);
-        if ( perc >= 0 && perc <= 100 ) 
-        {
-            
-            ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
-            result.push_back(Pair("split_percentage", perc));
-        }
-        else 
-        {
-            throw runtime_error("must be between 0 and 100 inclusive.\n");
-        }
     }
     return result;
 }
@@ -6539,10 +6469,30 @@ UniValue channelsopen(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("channelsopen destpubkey numpayments payment [tokenid]\n");
     if ( ensure_CCrequirements(EVAL_CHANNELS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     destpub = ParseHex(params[0].get_str().c_str());
+    if (destpub.size()!= 33)
+    {
+        ERR_RESULT("invalid destination pubkey");
+        return result;
+    }
     numpayments = atoi(params[1].get_str().c_str());
+    if (numpayments <1)
+    {
+        ERR_RESULT("invalid number of payments, must be greater than 0");
+        return result;
+    }
     payment = atol(params[2].get_str().c_str());
+    if (payment <1)
+    {
+        ERR_RESULT("invalid payment amount, must be greater than 0");
+        return result;
+    }
     if (params.size()==4)
     {
         tokenid=Parseuint256((char *)params[3].get_str().c_str());
@@ -6552,7 +6502,11 @@ UniValue channelsopen(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);    
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }    
     return(result);
 }
 
@@ -6564,9 +6518,19 @@ UniValue channelspayment(const UniValue& params, bool fHelp, const CPubKey& mypk
         throw runtime_error("channelspayment opentxid amount [secret]\n");
     if ( ensure_CCrequirements(EVAL_CHANNELS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     opentxid = Parseuint256((char *)params[0].get_str().c_str());
     amount = atoi((char *)params[1].get_str().c_str());
+    if (amount <1)
+    {
+        ERR_RESULT("invalid payment amount, must be greater than 0");
+        return result;
+    }
     if (params.size() > 2 && !params[2].isNull() && !params[2].get_str().empty())
     {
         secret = Parseuint256((char *)params[2].get_str().c_str());
@@ -6576,7 +6540,11 @@ UniValue channelspayment(const UniValue& params, bool fHelp, const CPubKey& mypk
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6588,14 +6556,23 @@ UniValue channelsclose(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("channelsclose opentxid\n");
     if ( ensure_CCrequirements(EVAL_CHANNELS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     opentxid = Parseuint256((char *)params[0].get_str().c_str());
     result = ChannelClose(mypk,0,opentxid);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6607,7 +6584,12 @@ UniValue channelsrefund(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("channelsrefund opentxid closetxid\n");
     if ( ensure_CCrequirements(EVAL_CHANNELS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     opentxid = Parseuint256((char *)params[0].get_str().c_str());
     closetxid = Parseuint256((char *)params[1].get_str().c_str());
     result = ChannelRefund(mypk,0,opentxid,closetxid);
@@ -6615,7 +6597,11 @@ UniValue channelsrefund(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6874,7 +6860,12 @@ UniValue gatewaysbind(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("gatewaysbind tokenid oracletxid coin tokensupply M N pubkey(s) pubtype p2shtype wiftype [taddr]\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     tokenid = Parseuint256((char *)params[0].get_str().c_str());
     oracletxid = Parseuint256((char *)params[1].get_str().c_str());
     coin = params[2].get_str();
@@ -6882,23 +6873,14 @@ UniValue gatewaysbind(const UniValue& params, bool fHelp, const CPubKey& mypk)
     M = atoi((char *)params[4].get_str().c_str());
     N = atoi((char *)params[5].get_str().c_str());
     if ( M > N || N == 0 || N > 15 || totalsupply < COIN/100 || tokenid == zeroid )
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("illegal M or N > 15 or tokensupply or invalid tokenid\n");
-    }
     if ( params.size() < 6+N+3 )
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("not enough parameters for N pubkeys\n");
-    }
     for (i=0; i<N; i++)
     {
         pubkey = ParseHex(params[6+i].get_str().c_str());
         if (pubkey.size()!= 33)
-        {
-            Unlock2NSPV(mypk);
             throw runtime_error("invalid destination pubkey");
-        }
         pubkeys.push_back(pubkey2pk(pubkey));
     }
     p1 = atoi((char *)params[6+N].get_str().c_str());
@@ -6910,7 +6892,11 @@ UniValue gatewaysbind(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6921,7 +6907,12 @@ UniValue gatewaysdeposit(const UniValue& params, bool fHelp, const CPubKey& mypk
         throw runtime_error("gatewaysdeposit bindtxid height coin cointxid claimvout deposithex proof destpub amount\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     bindtxid = Parseuint256((char *)params[0].get_str().c_str());
     height = atoi((char *)params[1].get_str().c_str());
     coin = params[2].get_str();
@@ -6932,21 +6923,19 @@ UniValue gatewaysdeposit(const UniValue& params, bool fHelp, const CPubKey& mypk
     destpub = ParseHex(params[7].get_str());
     amount = atof((char *)params[8].get_str().c_str()) * COIN + 0.00000000499999;
     if ( amount <= 0 || claimvout < 0 )
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("invalid param: amount, numpks or claimvout\n");
-    }
     if (destpub.size()!= 33)
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("invalid destination pubkey");
-    }
     result = GatewaysDeposit(mypk,0,bindtxid,height,coin,cointxid,claimvout,deposithex,proof,pubkey2pk(destpub),amount);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6957,23 +6946,29 @@ UniValue gatewaysclaim(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("gatewaysclaim bindtxid coin deposittxid destpub amount\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     bindtxid = Parseuint256((char *)params[0].get_str().c_str());
     coin = params[1].get_str();
     deposittxid = Parseuint256((char *)params[2].get_str().c_str());
     destpub = ParseHex(params[3].get_str());
     amount = atof((char *)params[4].get_str().c_str()) * COIN + 0.00000000499999;
     if (destpub.size()!= 33)
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("invalid destination pubkey");
-    }
     result = GatewaysClaim(mypk,0,bindtxid,coin,deposittxid,pubkey2pk(destpub),amount);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -6984,22 +6979,28 @@ UniValue gatewayswithdraw(const UniValue& params, bool fHelp, const CPubKey& myp
         throw runtime_error("gatewayswithdraw bindtxid coin withdrawpub amount\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     bindtxid = Parseuint256((char *)params[0].get_str().c_str());
     coin = params[1].get_str();
     withdrawpub = ParseHex(params[2].get_str());
     amount = atof((char *)params[3].get_str().c_str()) * COIN + 0.00000000499999;
     if (withdrawpub.size()!= 33)
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("invalid destination pubkey");
-    }
     result = GatewaysWithdraw(mypk,0,bindtxid,coin,pubkey2pk(withdrawpub),amount);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7010,7 +7011,12 @@ UniValue gatewayspartialsign(const UniValue& params, bool fHelp, const CPubKey& 
         throw runtime_error("gatewayspartialsign txidaddr refcoin hex\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     txid = Parseuint256((char *)params[0].get_str().c_str());
     coin = params[1].get_str();
     parthex = params[2].get_str();
@@ -7019,7 +7025,11 @@ UniValue gatewayspartialsign(const UniValue& params, bool fHelp, const CPubKey& 
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7030,7 +7040,12 @@ UniValue gatewayscompletesigning(const UniValue& params, bool fHelp, const CPubK
         throw runtime_error("gatewayscompletesigning withdrawtxid coin hex\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     withdrawtxid = Parseuint256((char *)params[0].get_str().c_str());
     coin = params[1].get_str();
     txhex = params[2].get_str();
@@ -7039,7 +7054,11 @@ UniValue gatewayscompletesigning(const UniValue& params, bool fHelp, const CPubK
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7050,7 +7069,12 @@ UniValue gatewaysmarkdone(const UniValue& params, bool fHelp, const CPubKey& myp
         throw runtime_error("gatewaysmarkdone completesigningtx coin\n");
     if ( ensure_CCrequirements(EVAL_GATEWAYS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     completetxid = Parseuint256((char *)params[0].get_str().c_str());
     coin = params[1].get_str();
     result = GatewaysMarkDone(mypk,0,completetxid,coin);
@@ -7058,7 +7082,11 @@ UniValue gatewaysmarkdone(const UniValue& params, bool fHelp, const CPubKey& myp
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7125,14 +7153,23 @@ UniValue oraclesfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("oraclesfund oracletxid\n");
     if ( ensure_CCrequirements(EVAL_ORACLES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     txid = Parseuint256((char *)params[0].get_str().c_str());
     result = OracleFund(mypk,0,txid);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7143,7 +7180,12 @@ UniValue oraclesregister(const UniValue& params, bool fHelp, const CPubKey& mypk
         throw runtime_error("oraclesregister oracletxid datafee\n");
     if ( ensure_CCrequirements(EVAL_ORACLES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     txid = Parseuint256((char *)params[0].get_str().c_str());
     if ( (datafee= atol((char *)params[1].get_str().c_str())) == 0 )
         datafee = atof((char *)params[1].get_str().c_str()) * COIN + 0.00000000499999;
@@ -7152,7 +7194,11 @@ UniValue oraclesregister(const UniValue& params, bool fHelp, const CPubKey& mypk
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7163,7 +7209,12 @@ UniValue oraclessubscribe(const UniValue& params, bool fHelp, const CPubKey& myp
         throw runtime_error("oraclessubscribe oracletxid publisher amount\n");
     if ( ensure_CCrequirements(EVAL_ORACLES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     txid = Parseuint256((char *)params[0].get_str().c_str());
     pubkey = ParseHex(params[1].get_str().c_str());
     amount = atof((char *)params[2].get_str().c_str()) * COIN + 0.00000000499999;
@@ -7172,7 +7223,11 @@ UniValue oraclessubscribe(const UniValue& params, bool fHelp, const CPubKey& myp
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7208,7 +7263,12 @@ UniValue oraclesdata(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("oraclesdata oracletxid hexstr\n");
     if ( ensure_CCrequirements(EVAL_ORACLES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     txid = Parseuint256((char *)params[0].get_str().c_str());
     data = ParseHex(params[1].get_str().c_str());
     result = OracleData(mypk,0,txid,data);
@@ -7216,7 +7276,11 @@ UniValue oraclesdata(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7227,16 +7291,40 @@ UniValue oraclescreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("oraclescreate name description format\n");
     if ( ensure_CCrequirements(EVAL_ORACLES) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     name = params[0].get_str();
+    if ( name.size() == 0 || name.size() > 32)
+    {
+        ERR_RESULT("oracles name must not be empty and up to 32 characters");
+        return(result);
+    }
     description = params[1].get_str();
+    if ( description.size() > 4096 )
+    {
+        ERR_RESULT("oracles description must be <= 4096 characters");
+        return(result);
+    }
     format = params[2].get_str();
+    if ( format.size() > 4096 )
+    {
+        ERR_RESULT("oracles format must be <= 4096 characters");
+        return(result);
+    }
     result = OracleCreate(mypk,0,name,description,format);
     if ( result[JSON_HEXTX].getValStr().size() > 0  )
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -7654,31 +7742,27 @@ UniValue tokenorders(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     uint256 tokenid;
     if ( fHelp || params.size() > 1 )
-        throw runtime_error("tokenorders [tokenid]\n"
-                            "returns token orders for the tokenid or all available token orders if tokenid is not set\n"
-                            "(this rpc supports only fungible tokens)\n" "\n");
+        throw runtime_error("tokenorders tokenid\n");
     if (ensure_CCrequirements(EVAL_ASSETS) < 0 || ensure_CCrequirements(EVAL_TOKENS) < 0)
         throw runtime_error(CC_REQUIREMENTS_MSG);
 	if (params.size() == 1) {
 		tokenid = Parseuint256((char *)params[0].get_str().c_str());
 		if (tokenid == zeroid)
 			throw runtime_error("incorrect tokenid\n");
-        return AssetOrders(tokenid, CPubKey(), 0);
 	}
     else {
-        // throw runtime_error("no tokenid\n");
-        return AssetOrders(zeroid, CPubKey(), 0);
+        // memset(&tokenid, 0, sizeof(tokenid));
+        throw runtime_error("no tokenid\n");
     }
+    return AssetOrders(tokenid, CPubKey(), 0);
 }
 
 
 UniValue mytokenorders(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     uint256 tokenid;
-    if (fHelp || params.size() > 1)
-        throw runtime_error("mytokenorders [evalcode]\n"
-                            "returns all the token orders for mypubkey\n"
-                            "if evalcode is set then returns mypubkey token orders for non-fungible tokens with this evalcode\n" "\n");
+    if (fHelp || params.size() > 2)
+        throw runtime_error("mytokenorders [evalcode]\n");
     if (ensure_CCrequirements(EVAL_ASSETS) < 0 || ensure_CCrequirements(EVAL_TOKENS) < 0)
         throw runtime_error(CC_REQUIREMENTS_MSG);
     uint8_t additionalEvalCode = 0;
@@ -8323,14 +8407,16 @@ UniValue pegscreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
     const CKeyStore& keystore = *pwalletMain;
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     amount = atof((char *)params[0].get_str().c_str()) * COIN + 0.00000000499999;
     N = atoi((char *)params[1].get_str().c_str());
     if ( params.size() < N+1 )
-    {
-        Unlock2NSPV(mypk);
         throw runtime_error("not enough parameters for N pegscreate\n");
-    }
     for (i=0; i<N; i++)
     {       
         txid = Parseuint256(params[i+2].get_str().c_str());
@@ -8341,7 +8427,11 @@ UniValue pegscreate(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -8355,7 +8445,12 @@ UniValue pegsfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
     const CKeyStore& keystore = *pwalletMain;
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     pegstxid = Parseuint256(params[0].get_str().c_str());
     tokenid = Parseuint256(params[1].get_str().c_str());
     amount = atof((char *)params[2].get_str().c_str()) * COIN + 0.00000000499999;
@@ -8364,7 +8459,11 @@ UniValue pegsfund(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -8376,7 +8475,12 @@ UniValue pegsget(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("pegsget pegstxid tokenid amount\n");
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     pegstxid = Parseuint256(params[0].get_str().c_str());
     tokenid = Parseuint256(params[1].get_str().c_str());
     amount = atof((char *)params[2].get_str().c_str()) * COIN + 0.00000000499999;
@@ -8385,7 +8489,11 @@ UniValue pegsget(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -8397,7 +8505,12 @@ UniValue pegsredeem(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("pegsredeem pegstxid tokenid\n");
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     pegstxid = Parseuint256(params[0].get_str().c_str());
     tokenid = Parseuint256(params[1].get_str().c_str());
     result = PegsRedeem(mypk,0,pegstxid,tokenid);
@@ -8405,7 +8518,11 @@ UniValue pegsredeem(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -8417,7 +8534,12 @@ UniValue pegsliquidate(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("pegsliquidate pegstxid tokenid accounttxid\n");
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     pegstxid = Parseuint256(params[0].get_str().c_str());
     tokenid = Parseuint256(params[1].get_str().c_str());
     accounttxid = Parseuint256(params[2].get_str().c_str());
@@ -8426,7 +8548,11 @@ UniValue pegsliquidate(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 
@@ -8438,7 +8564,12 @@ UniValue pegsexchange(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("pegsexchange pegstxid tokenid amount\n");
     if ( ensure_CCrequirements(EVAL_PEGS) < 0 )
         throw runtime_error(CC_REQUIREMENTS_MSG);
-    Lock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+    
+        ENTER_CRITICAL_SECTION(cs_main);
+        ENTER_CRITICAL_SECTION(pwalletMain->cs_wallet);
+    }
     pegstxid = Parseuint256(params[0].get_str().c_str());
     tokenid = Parseuint256(params[1].get_str().c_str());
     amount = atof((char *)params[2].get_str().c_str()) * COIN + 0.00000000499999;
@@ -8447,7 +8578,11 @@ UniValue pegsexchange(const UniValue& params, bool fHelp, const CPubKey& mypk)
     {
         result.push_back(Pair("result", "success"));
     }
-    Unlock2NSPV(mypk);
+    if (!mypk.IsValid())
+    {
+        LEAVE_CRITICAL_SECTION(pwalletMain->cs_wallet);
+        LEAVE_CRITICAL_SECTION(cs_main);
+    }
     return(result);
 }
 

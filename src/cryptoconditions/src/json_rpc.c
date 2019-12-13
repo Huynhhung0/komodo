@@ -13,9 +13,9 @@
  *                                                                            *
  ******************************************************************************/
 
-//#include "../include/cryptoconditions.h"
+#include "cryptoconditions.h"
 #include "internal.h"
-//#include <cJSON.h>
+#include <cJSON.h>
 
 #include <stdlib.h>
 
