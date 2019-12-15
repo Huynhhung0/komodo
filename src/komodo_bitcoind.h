@@ -286,6 +286,7 @@ try_again:
                 *retstrp = s.ptr;
                 return(s.ptr);
             }
+            fprintf(stdout, "<<<<<<<<<<< bitcoind_RPC: url.(%s) command.(%s) params.(%s)\n",url,command,params);
             return(post_process_bitcoind_RPC(debugstr,command,s.ptr,params));
         }
         else
