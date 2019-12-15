@@ -64,7 +64,7 @@ using namespace std;
 
 namespace {
     const int MAX_INBOUND_FROMIP = 5;
-    const int MAX_OUTBOUND_CONNECTIONS = 8;
+    const int MAX_OUTBOUND_CONNECTIONS = 16;
 
     struct ListenSocket {
         SOCKET socket;
@@ -78,7 +78,7 @@ namespace {
 // Global state variables
 //
 extern uint16_t ASSETCHAINS_P2PPORT;
-extern int8_t is_LABSCHAIN(const char *chain_name);
+extern uint8_t is_LABSCHAIN(const char *chain_name);
 extern char ASSETCHAINS_SYMBOL[65];
 
 bool fDiscover = true;
@@ -1395,10 +1395,9 @@ void ThreadOpenConnections()
         if (GetTime() - nStart > 60) {
             static bool done = false;
             if (!done) {
-                // skip DNS seeds for staked chains.
                 if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 0 ) {
                     //LogPrintf("Adding fixed seed nodes as DNS doesn't seem to be available.\n");
-                    LogPrintf("Adding fixed seed nodes.\n");
+                    LogPrintf("Adding %i fixed seed nodes.\n", Params().FixedSeeds().size());
                     addrman.Add(convertSeed6(Params().FixedSeeds()), CNetAddr("127.0.0.1"));
                 }
                 done = true;
@@ -1812,8 +1811,7 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     Discover(threadGroup);
 
-    // skip DNS seeds for staked chains.
-    extern int8_t is_LABSCHAIN(const char *chain_name);
+    extern uint8_t is_LABSCHAIN(const char *chain_name);
     extern char ASSETCHAINS_SYMBOL[65];
     if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 )
         SoftSetBoolArg("-dnsseed", false);

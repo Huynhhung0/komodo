@@ -1701,7 +1701,7 @@ void komodo_args(char *argv0)
     FILE *fp; uint64_t val; uint16_t port; int32_t i,nonz=0,baseid,len,n,extralen = 0; uint64_t ccenables[256], ccEnablesHeight[512] = {0}; CTransaction earlytx; uint256 hashBlock;
 
     IS_KOMODO_NOTARY = GetBoolArg("-notary", false);
-    IS_LABS_NOTARY = GetArg("-stakednotary", -1);
+    IS_LABS_NOTARY = GetArg("-labsnotary", 0);
     KOMODO_NSPV = GetArg("-nSPV",0);
     memset(ccenables,0,sizeof(ccenables));
     memset(disablebits,0,sizeof(disablebits));
@@ -1721,28 +1721,24 @@ void komodo_args(char *argv0)
     {
         decode_hex(NOTARY_PUBKEY33,33,(char *)NOTARY_PUBKEY.c_str());
         USE_EXTERNAL_PUBKEY = 1;
+        /* notaries use -notary to avoid needing this, no chain data so its not accurate at all.
         if ( IS_KOMODO_NOTARY == 0 )
         {
-            // We dont have any chain data yet, so use system clock to guess. 
-            // I think on season change should reccomend notaries to use -notary to avoid needing this. 
+            
             int32_t kmd_season = getacseason(time(NULL));
             for (i=0; i<64; i++)
             {
-                if ( strcmp(NOTARY_PUBKEY.c_str(),notaries_elected[kmd_season-1][i][1]) == 0 )
+                if ( strcmp(NOTARY_PUBKEY.c_str(),notaries_elected[kmd_season][i][1]) == 0 )
                 {
                     IS_KOMODO_NOTARY = 1;
                     KOMODO_MININGTHREADS = 1;
                     mapArgs ["-genproclimit"] = itostr(KOMODO_MININGTHREADS);
-                    IS_LABS_NOTARY = -1;
-                    fprintf(stderr,"running as notary.%d %s\n",i,notaries_elected[kmd_season-1][i][0]);
+                    IS_LABS_NOTARY = 0;
+                    fprintf(stderr,"running as notary.%d %s\n",i,notaries_elected[kmd_season][i][0]);
                     break;
                 }
             }
-        }
-    }
-    if ( IS_LABS_NOTARY != -1 && IS_KOMODO_NOTARY == true ) {
-        fprintf(stderr, "Cannot be LABS and KMD notary at the same time!\n");
-        StartShutdown();
+        } */
     }
 	name = GetArg("-ac_name","");
     if ( argv0 != 0 )
