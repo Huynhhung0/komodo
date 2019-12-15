@@ -815,11 +815,10 @@ int32_t komodo_notarycmp(uint8_t *scriptPubKey,int32_t scriptlen,uint8_t pubkeys
 int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
 {
     static int32_t hwmheight;
-    int32_t labs_era; static int32_t lastStakedEra;
     std::vector<int32_t> notarisations;
     uint64_t signedmask,voutmask; char symbol[KOMODO_ASSETCHAIN_MAXLEN],dest[KOMODO_ASSETCHAIN_MAXLEN]; struct komodo_state *sp;
     uint8_t scriptbuf[10001],pubkeys[64][33],rmd160[20],scriptPubKey[35]; uint256 zero,btctxid,txhash;
-    int32_t i,j,k,numnotaries,notarized,scriptlen,isratification,nid,numvalid,specialtx,notarizedheight,notaryid,len,numvouts,numvins,height,txn_count;
+    int32_t i,j,k,numnotaries,notarized,scriptlen,isratification,nid,numvalid,specialtx,notarizedheight,notaryid,len,numvouts,numvins,height,txn_count,islabs,labs_era;
     if ( pindex == 0 )
     {
         fprintf(stderr,"komodo_connectblock null pindex\n");
@@ -834,19 +833,6 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         return(0);
     }
     //fprintf(stderr,"%s connect.%d\n",ASSETCHAINS_SYMBOL,pindex->nHeight);
-    // Wallet Filter. Disabled here. Cant be activated by notaries or pools with some changes.
-    if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 || IS_LABS_NOTARY > -1 )
-    {
-        labs_era = get_LABS_ERA(pindex->GetBlockTime());
-        if ( !fJustCheck && labs_era != lastStakedEra )
-        {
-            uint8_t tmp_pubkeys[64][33];
-            int8_t numSN = num_LABSNotaries(tmp_pubkeys,labs_era);
-            UpdateLABSNotaryAddrs(tmp_pubkeys,numSN);
-            LABS_ERA = labs_era;
-            lastStakedEra = labs_era;
-        }
-    }
     numnotaries = komodo_notaries(pubkeys,pindex->GetHeight(),pindex->GetBlockTime());
     calc_rmd160_sha256(rmd160,pubkeys[0],33);
     if ( pindex->GetHeight() > hwmheight )
@@ -867,16 +853,16 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     }
     komodo_currentheight_set(chainActive.LastTip()->GetHeight());
     int transaction = 0;
+    islabs= is_LABSCHAIN(ASSETCHAINS_SYMBOL);
+    labs_era = get_LABS_ERA(pindex->GetBlockTime());
     if ( pindex != 0 )
     {
         height = pindex->GetHeight();
         txn_count = block.vtx.size();
         for (i=0; i<txn_count; i++)
         {
-            if ( (is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 && labs_era == 0) || (is_LABSCHAIN(ASSETCHAINS_SYMBOL) == 255) ) {
-                // in era gap or chain banned, no point checking any invlaid notarisations.
+            if ( islabs > 0 && (islabs == 255 || labs_era < 0) )
                 break;
-            }
             // Notary pay chains need notarisation in position 1, ignore the rest on validation. Check notarisation is 1 on check.
             if ( !fJustCheck && i > 1 && ASSETCHAINS_NOTARY_PAY[0] != 0 )
                 break;
@@ -905,8 +891,8 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
             }
             numvalid = bitweight(signedmask);
             if ( ((height < 90000 || (signedmask & 1) != 0) && numvalid >= KOMODO_MINRATIFY) ||
-                (numvalid >= KOMODO_MINRATIFY && ASSETCHAINS_SYMBOL[0] != 0) ||
-                numvalid > (numnotaries/5) )
+                (islabs == 0 && numvalid >= KOMODO_MINRATIFY && ASSETCHAINS_SYMBOL[0] != 0) ||
+                (numvalid > LABSMINSIGS(numnotaries,block.nTime)) )
             {
                 if ( !fJustCheck && ASSETCHAINS_SYMBOL[0] != 0)
                 {

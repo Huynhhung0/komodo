@@ -6,7 +6,6 @@
 #include "cc/CCinclude.h"
 static const int32_t iguanaPort = 9333;
 static const int8_t BTCminsigs = 13;
-static const int8_t overrideMinSigs = 7;
 static const char *iguanaSeeds[8][1] =
 {
   {"94.23.1.95"},
@@ -26,6 +25,8 @@ static const int NUM_LABS_ERAS = 4;
 static const int LABS_NOTARIES_TIMESTAMP[NUM_LABS_ERAS] = {1572523200, 1704244444, 1704244444, 1704244444}; // Oct 31 noon UTC
 // Set the number of keys in position 2:
 static const int32_t num_notaries_LABS[NUM_LABS_ERAS] = { 22, 24, 1, 1 };
+// min sigs for each era, this should be number of notaries/5, however we need the minsigs to be part of consensus in the daemon for notarypay and iguana uses a higher value than the daemon. 
+static const int8_t LABS_MinSigs[NUM_LABS_ERAS] = { 7, 7, 7, 7 };
 
 // Place the second era pubkeys in position 2, DO NOT TOUCH era one keys!: 
 static const char *notaries_LABS[NUM_LABS_ERAS][64][2] =
@@ -88,11 +89,9 @@ static const char *notaries_LABS[NUM_LABS_ERAS][64][2] =
     }
 };
 
-int8_t is_LABSCHAIN(const char *chain_name);
-int32_t get_LABS_ERA(int timestamp);
-int8_t num_LABSNotaries(uint8_t pubkeys[64][33],int8_t era);
-int8_t LABS_NotaryID(std::string &notaryname, char *Raddress);
-void UpdateLABSNotaryAddrs(uint8_t pubkeys[64][33],int8_t numNotaries);
+uint8_t is_LABSCHAIN(const char *chain_name);
+int32_t get_LABS_ERA(uint32_t timestamp);
+int8_t num_LABSNotaries(uint8_t *pubkeysp, int32_t era);
 int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp);
 
 CrosschainAuthority Choose_Crosschain_auth(int32_t chosen_era);
