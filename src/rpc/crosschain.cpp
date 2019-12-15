@@ -1144,7 +1144,7 @@ UniValue getNotarisationsForBlock(const UniValue& params, bool fHelp, const CPub
     UniValue kmd(UniValue::VARR);
     int8_t numNN = 0, numSN = 0; uint8_t notarypubkeys[64][33] = {0}; uint8_t LABSpubkeys[64][33] = {0};
     numNN = komodo_notaries(notarypubkeys, height, chainActive[height]->nTime);
-    numSN = num_LABSNotaries(LABSpubkeys,get_LABS_ERA(chainActive[height]->nTime));
+    numSN = num_LABSNotaries((uint8_t*)LABSpubkeys[0],chainActive[height]->nTime);
 
     BOOST_FOREACH(const Notarisation& n, nibs)
     {

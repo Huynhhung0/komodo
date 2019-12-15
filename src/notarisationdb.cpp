@@ -20,7 +20,7 @@ NotarisationsInBlock ScanBlockNotarisations(const CBlock &block, int nHeight)
     EvalRef eval;
     NotarisationsInBlock vNotarisations;
     CrosschainAuthority auth_LABS;
-    int timestamp = block.nTime;
+    int32_t labs_era;
 
     for (unsigned int i = 0; i < block.vtx.size(); i++) {
         CTransaction tx = block.vtx[i];
@@ -44,8 +44,7 @@ NotarisationsInBlock ScanBlockNotarisations(const CBlock &block, int nHeight)
         {
             if ( is_LABSCHAIN(data.symbol) == 255 )
                 continue;
-            int32_t labs_era = get_LABS_ERA(timestamp);
-            if (labs_era == 0) 
+            if ( (labs_era= get_LABS_ERA(block.nTime)) < 0 ) 
                 continue;
             auth_LABS = Choose_Crosschain_auth(labs_era);
             if (!CheckTxAuthority(tx, auth_LABS))

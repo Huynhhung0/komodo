@@ -469,12 +469,12 @@ namespace {
 
         ProcessBlockAvailability(nodeid);
 
-        BlockMap::iterator it = mapBlockIndex.find(hash);
+        /*BlockMap::iterator it = mapBlockIndex.find(hash);
         if (it != mapBlockIndex.end() && it->second->chainPower > 0) {
             // An actually better block was announced.
             if (state->pindexBestKnownBlock == NULL || it->second->chainPower >= state->pindexBestKnownBlock->chainPower)
                 state->pindexBestKnownBlock = it->second;
-        } else {
+        } else */ {
             // An unknown block was announced; just assume that the latest one is the best one.
             state->hashLastUnknownBlock = hash;
         }
@@ -1435,16 +1435,16 @@ int32_t komodo_isnotaryvout(char *coinaddr,uint32_t tiptime) // from ac_private 
     if ( strcmp(coinaddr,CRYPTO777_KMDADDR) == 0 )
         return(1);
     int32_t season = getacseason(tiptime);
-    if ( NOTARY_ADDRESSES[season-1][0][0] == 0 )
+    if ( NOTARY_ADDRESSES[season][0][0] == 0 )
     {
         uint8_t pubkeys[64][33];
         komodo_notaries(pubkeys,0,tiptime);
     }
     for (int32_t i = 0; i < NUM_KMD_NOTARIES; i++) 
     {
-        if ( strcmp(coinaddr,NOTARY_ADDRESSES[season-1][i]) == 0 )
+        if ( strcmp(coinaddr,NOTARY_ADDRESSES[season][i]) == 0 )
         {
-            //fprintf(stderr, "coinaddr.%s notaryaddress[%i].%s\n",coinaddr,i,NOTARY_ADDRESSES[season-1][i]);
+            //fprintf(stderr, "coinaddr.%s notaryaddress[%i].%s\n",coinaddr,i,NOTARY_ADDRESSES[season][i]);
             return(1);
         }
     }
@@ -4434,7 +4434,7 @@ static void PruneBlockIndexCandidates() {
  * Try to make some progress towards making pindexMostWork the active block.
  * pblock is either NULL or a pointer to a CBlock corresponding to pindexMostWork.
  */
-static bool ActivateBestChainStep(bool fSkipdpow, CValidationState &state, CBlockIndex *pindexMostWork, CBlock *pblock) {
+static bool ActivateBestChainStep(CValidationState &state, CBlockIndex *pindexMostWork, CBlock *pblock) {
     AssertLockHeld(cs_main);
     bool fInvalidFound = false;
     const CBlockIndex *pindexOldTip = chainActive.Tip();
@@ -4444,7 +4444,7 @@ static bool ActivateBestChainStep(bool fSkipdpow, CValidationState &state, CBloc
     // stay on the same chain tip! 
     int32_t notarizedht,prevMoMheight; uint256 notarizedhash,txid;
     notarizedht = komodo_notarized_height(&prevMoMheight,&notarizedhash,&txid);
-    if ( !fSkipdpow && pindexFork != 0 && pindexOldTip->GetHeight() > notarizedht && pindexFork->GetHeight() < notarizedht )
+    if ( pindexFork != 0 && pindexOldTip->GetHeight() > notarizedht && pindexFork->GetHeight() < notarizedht )
     {
         LogPrintf("pindexOldTip->GetHeight().%d > notarizedht %d && pindexFork->GetHeight().%d is < notarizedht %d, so ignore it\n",(int32_t)pindexOldTip->GetHeight(),notarizedht,(int32_t)pindexFork->GetHeight(),notarizedht);
         // *** DEBUG ***
@@ -4597,7 +4597,7 @@ static bool ActivateBestChainStep(bool fSkipdpow, CValidationState &state, CBloc
  * or an activated best chain. pblock is either NULL or a pointer to a block
  * that is already loaded (to avoid loading it again from disk).
  */
-bool ActivateBestChain(bool fSkipdpow, CValidationState &state, CBlock *pblock) {
+bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
     CBlockIndex *pindexNewTip = NULL;
     CBlockIndex *pindexMostWork = NULL;
     const CChainParams& chainParams = Params();
@@ -4613,7 +4613,7 @@ bool ActivateBestChain(bool fSkipdpow, CValidationState &state, CBlock *pblock) 
             if (pindexMostWork == NULL || pindexMostWork == chainActive.Tip())
                 return true;
 
-            if (!ActivateBestChainStep(fSkipdpow, state, pindexMostWork, pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : NULL))
+            if (!ActivateBestChainStep(state, pindexMostWork, pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : NULL))
                 return false;
             pindexNewTip = chainActive.Tip();
             fInitialDownload = IsInitialBlockDownload();
@@ -5116,7 +5116,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 libzcash::ProofVerifier& verifier,
                 bool fCheckPOW, bool fCheckMerkleRoot)
 {
-    uint8_t pubkey33[33]; uint256 hash; uint32_t tiptime = (uint32_t)block.nTime;
+    uint8_t pubkey33[33] = {0}; uint256 hash; uint32_t tiptime = (uint32_t)block.nTime;
     // These are checks that are independent of context.
     hash = block.GetHash();
     // Check that the header is valid (particularly PoW).  This is mostly redundant with the call in AcceptBlockHeader.
@@ -5151,10 +5151,15 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         int32_t special = komodo_chosennotary(&notaryid,height,pubkey33,tiptime);
         if (notaryid > 0) {
             CScript merkleroot = CScript();
-            CBlock blockcopy = block; // block shouldn't be changed below, so let's make it's copy
+            /*CBlock blockcopy = block; // block shouldn't be changed below, so let's make it's copy 
             CBlock *pblockcopy = (CBlock *)&blockcopy;
+            CBlock *pblockcopy = (CBlock *)&block;
             if (!komodo_checkopret(pblockcopy, merkleroot)) {
                 fprintf(stderr, "failed or missing merkleroot expected.%s != merkleroot.%s\n", komodo_makeopret(pblockcopy, false).ToString().c_str(), merkleroot.ToString().c_str());
+                return state.DoS(100, error("CheckBlock: failed or missing merkleroot opret in easy-mined"),REJECT_INVALID, "failed-merkle-opret-in-easy-mined");
+            } */
+            if (!komodo_checkopret(&block, merkleroot)) {
+                fprintf(stderr, "failed or missing merkleroot expected.%s != merkleroot.%s\n", komodo_makeopret(&block, false).ToString().c_str(), merkleroot.ToString().c_str());
                 return state.DoS(100, error("CheckBlock: failed or missing merkleroot opret in easy-mined"),REJECT_INVALID, "failed-merkle-opret-in-easy-mined");
             }
         }
@@ -5282,7 +5287,6 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     if (nSigOps > MAX_BLOCK_SIGOPS)
         return state.DoS(100, error("CheckBlock: out-of-bounds SigOpCount"),
                          REJECT_INVALID, "bad-blk-sigops", true);
-    //if ( fCheckPOW && komodo_check_deposit(height,block,(pindex==0||pindex->pprev==0)?0:pindex->pprev->nTime) < 0 )
     if ( fCheckPOW && komodo_check_deposit(height,block,pindex) < 0 )
     {
         //static uint32_t counter;
@@ -5383,12 +5387,12 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
             CBlockIndex *heightblock = chainActive[nHeight];
             if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
                 return true;
-            return state.DoS(1, error("%s: trying to change height 1 forbidden", __func__));
+            return state.DoS(100, error("%s: trying to change height 1 forbidden", __func__));
         }
         if ( nHeight != 0 )
         {
             if ( pcheckpoint != 0 && nHeight < pcheckpoint->GetHeight() )
-                return state.DoS(1, error("%s: forked chain older than last checkpoint (height %d) vs %d", __func__, nHeight,pcheckpoint->GetHeight()));
+                return state.DoS(100, error("%s: forked chain older than last checkpoint (height %d) vs %d", __func__, nHeight,pcheckpoint->GetHeight()));
             if ( komodo_checkpoint(&notarized_height,nHeight,hash) < 0 )
             {
                 CBlockIndex *heightblock = chainActive[nHeight];
@@ -5396,7 +5400,7 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
                 {
                     //fprintf(stderr,"got a pre notarization block that matches height.%d\n",(int32_t)nHeight);
                     return true;
-                } else return state.DoS(1, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height));
+                } else return state.DoS(100, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height));
             }
         }
     }
@@ -5574,16 +5578,18 @@ bool AcceptBlock(int32_t *futureblockp,CBlock& block, CValidationState& state, C
     // blocks which are too close in height to the tip.  Apply this test
     // regardless of whether pruning is enabled; it should generally be safe to
     // not process unrequested blocks.
-    bool fTooFarAhead = (pindex->GetHeight() > int(chainActive.Height() + BLOCK_DOWNLOAD_WINDOW)); //MIN_BLOCKS_TO_KEEP));
+    //bool fTooFarAhead = (pindex->GetHeight() > int(chainActive.Height() + BLOCK_DOWNLOAD_WINDOW)); //MIN_BLOCKS_TO_KEEP));
 
     // TODO: deal better with return value and error conditions for duplicate
     // and unrequested blocks.
     //fprintf(stderr,"Accept %s flags already.%d requested.%d morework.%d farahead.%d\n",pindex->GetBlockHash().ToString().c_str(),fAlreadyHave,fRequested,fHasMoreWork,fTooFarAhead);
+    
+    
     if (fAlreadyHave) return true;
     if (!fRequested) {  // If we didn't ask for it:
-        if (pindex->nTx != 0) return true;  // This is a previously-processed block that was pruned
+        //if (pindex->nTx != 0) return true;  // This is a previously-processed block that was pruned
         if (!fHasMoreWork) return true;     // Don't process less-work chains
-        if (fTooFarAhead) return true;      // Block height is too high
+        //if (fTooFarAhead) return true;      // Block height is too high
     }
 
     // See method docstring for why this is always disabled
@@ -5805,7 +5811,7 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
         //else fprintf(stderr,"added block %s %p\n",pindex->GetBlockHash().ToString().c_str(),pindex->pprev);
     }
 
-    if (futureblock == 0 && !ActivateBestChain(false, state, pblock))
+    if (futureblock == 0 && !ActivateBestChain(state, pblock))
         return error("%s: ActivateBestChain failed", __func__);
     //fprintf(stderr,"finished ProcessBlock %d\n",(int32_t)chainActive.LastTip()->GetHeight());
 
@@ -6580,7 +6586,7 @@ bool InitBlockIndex() {
                 return error("LoadBlockIndex(): couldnt add to block index");
             if (!ReceivedBlockTransactions(block, state, pindex, blockPos))
                 return error("LoadBlockIndex(): genesis block not accepted");
-            if (!ActivateBestChain(true, state, &block))
+            if (!ActivateBestChain(state, &block))
                 return error("LoadBlockIndex(): genesis block cannot be activated");
             // Force a chainstate write so that when we VerifyDB in a moment, it doesn't check stale data
             if ( KOMODO_NSPV_FULLNODE )

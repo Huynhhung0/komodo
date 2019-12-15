@@ -705,16 +705,13 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp, const CPubKey& myp
         LOCK(cs_vNodes);
         fvNodesEmpty = vNodes.empty();
     }
-    if (Params().MiningRequiresPeers() && (IsNotInSync() || fvNodesEmpty))
-    {
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Cannot get a block template while no peers are connected or chain not in sync!");
-    }
+    if (Params().MiningRequiresPeers(), fvNodesEmpty)  // && (IsNotInSync() || fvNodesEmpty)
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Cannot get a block template while no peers are connected!");
 
-    //if (IsInitialBlockDownload())
-     //   throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Zcash is downloading blocks...");
-
+    if (IsInitialBlockDownload() || IsNotInSync())
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Downloading blocks...");    
+    
     static unsigned int nTransactionsUpdatedLast;
-
     if (!lpval.isNull())
     {
         // Wait to respond until either the best block changes, OR a minute has passed and there are more transactions
