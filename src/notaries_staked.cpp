@@ -70,7 +70,7 @@ int32_t LABSMINSIGS(int32_t num_notaries, uint32_t timestamp)
     int32_t era = get_LABS_ERA(timestamp), n, minsigs=0;
     if ( era >= 0 )
     {
-        n = num_notaries != 0 ? num_notaries : LABS_MinSigs[era];
+        n = num_notaries != 0 ? num_notaries : num_notaries_LABS[era];
         minsigs = n/5;
         if ( ++minsigs < LABS_MinSigs[era] )
             return(LABS_MinSigs[era]);

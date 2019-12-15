@@ -96,8 +96,9 @@ UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
     UniValue json(UniValue::VOBJ);
     UniValue seeds(UniValue::VARR);
     UniValue notaries(UniValue::VARR);
+    LOCK(cs_main);
     
-    int32_t era = (params.size() == 1 ? atoll(params[1].get_str().c_str()) : get_LABS_ERA(GetTime()));
+    int32_t era = (params.size() == 1 ? atoll(params[0].get_str().c_str()) : get_LABS_ERA(chainActive.LastTip()->GetBlockTime()));
     if ( era < 0 )
         return json;
     for (int8_t i = 0; i < 8; i++)
@@ -153,8 +154,9 @@ UniValue geterablockheights(const UniValue& params, bool fHelp, const CPubKey& m
           "geterablockheights\n"
           "Returns a JSON object with the first block in each era.\n"
           );
-      
-    CBlockIndex *pindex; int8_t lastera,era = 0; UniValue ret(UniValue::VOBJ);
+    
+    LOCK(cs_main);
+    CBlockIndex *pindex; int8_t lastera = 0,era; UniValue ret(UniValue::VOBJ);
 
     for (size_t i = 1; i < chainActive.Height(); i++)
     {
@@ -164,7 +166,7 @@ UniValue geterablockheights(const UniValue& params, bool fHelp, const CPubKey& m
         {
             char str[16];
             sprintf(str, "%d", era);
-            ret.push_back(Pair(str,(int64_t)i));
+            ret.push_back(Pair(str,i));
             lastera = era;
         }
     }
@@ -286,6 +288,7 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
         }
         obj.push_back(Pair("pubkey", NOTARY_PUBKEY));
     }
+    obj.push_back(Pair("labs_era", get_LABS_ERA(chainActive.LastTip()->GetBlockTime())));
     if ( ASSETCHAINS_CC != 0 )
         obj.push_back(Pair("CCid",        (int)ASSETCHAINS_CC));
     obj.push_back(Pair("name",        ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));
