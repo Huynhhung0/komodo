@@ -111,6 +111,9 @@ enum BlockStatus: uint32_t {
     // flag to check if contextual check block has passed in Accept block, if it has not check at connect block. 
     BLOCK_VALID_CONTEXT      =    6,
     
+    // flag for notarized block 
+    //BLOCK_VALID_NOTARIZED    =    7, 
+    
     //! All validity bits.
     BLOCK_VALID_MASK         =   BLOCK_VALID_HEADER | BLOCK_VALID_TREE | BLOCK_VALID_TRANSACTIONS |
                                  BLOCK_VALID_CHAIN | BLOCK_VALID_SCRIPTS,
@@ -121,7 +124,8 @@ enum BlockStatus: uint32_t {
 
     BLOCK_FAILED_VALID       =   32, //! stage after last reached validness failed
     BLOCK_FAILED_CHILD       =   64, //! descends from failed block
-    BLOCK_FAILED_MASK        =   BLOCK_FAILED_VALID | BLOCK_FAILED_CHILD,
+    //BLOCK_FAILED_NOTARIZED   =   96, //! decsends from a pre notarized block 
+    BLOCK_FAILED_MASK        =   BLOCK_FAILED_VALID | BLOCK_FAILED_CHILD, // | BLOCK_FAILED_NOTARIZED,
 
     BLOCK_ACTIVATES_UPGRADE  =   128, //! block activates a network upgrade
     BLOCK_IN_TMPFILE         =   256 
