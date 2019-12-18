@@ -93,17 +93,15 @@ UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
         throw runtime_error("getiguanajson <era> \n"
             "returns json for iguana, for the era requeted or active era with no param.");
 
-    UniValue json(UniValue::VOBJ);
-    UniValue seeds(UniValue::VARR);
-    UniValue notaries(UniValue::VARR);
     LOCK(cs_main);
     
-    int32_t era = (params.size() == 1 ? atoll(params[0].get_str().c_str()) : get_LABS_ERA(chainActive.LastTip()->GetBlockTime()));
+    UniValue json(UniValue::VOBJ), seeds(UniValue::VARR), notaries(UniValue::VARR);
+    int32_t i, era = (params.size() == 1 ? atoi(params[0].get_str().c_str()) : get_LABS_ERA(chainActive.LastTip()->GetBlockTime()));
     if ( era < 0 )
         return json;
-    for (int8_t i = 0; i < 8; i++)
+    for (i = 0; i < 8; i++)
         seeds.push_back(iguanaSeeds[i][0]);
-    for (int8_t i = 0; i < num_notaries_LABS[era]; i++) 
+    for (i = 0; i < num_notaries_LABS[era]; i++) 
     {
         UniValue notary(UniValue::VOBJ);
         notary.push_back(Pair(notaries_LABS[era][i][0],notaries_LABS[era][i][1]));
@@ -111,7 +109,7 @@ UniValue getiguanajson(const UniValue& params, bool fHelp, const CPubKey& mypk)
     }
     json.push_back(Pair("port",iguanaPort));
     json.push_back(Pair("BTCminsigs",BTCminsigs));
-    json.push_back(Pair("minsigs",LABSMINSIGS(num_notaries_LABS[era],LABS_NOTARIES_TIMESTAMP[era])));
+    json.push_back(Pair("minsigs",LABSMINSIGS2(0,era)));
     json.push_back(Pair("seeds",seeds));
     json.push_back(Pair("notaries",notaries));
     return json;
@@ -131,9 +129,9 @@ UniValue getnotarysendmany(const UniValue& params, bool fHelp, const CPubKey& my
     UniValue ret(UniValue::VOBJ);
     
     if ( params.size() >= 1 ) 
-        amount = atoll(params[0].get_str().c_str());
+        amount = atoi(params[0].get_str().c_str());
     if ( params.size() == 2 ) 
-        era = atoll(params[1].get_str().c_str());
+        era = atoi(params[1].get_str().c_str());
     if ( era < 0 )
         return ret;
     
@@ -156,12 +154,11 @@ UniValue geterablockheights(const UniValue& params, bool fHelp, const CPubKey& m
           );
     
     LOCK(cs_main);
-    CBlockIndex *pindex; int8_t lastera = 0,era; UniValue ret(UniValue::VOBJ);
+    int32_t lastera = -1,era,i; UniValue ret(UniValue::VOBJ);
 
-    for (size_t i = 1; i < chainActive.Height(); i++)
+    for (i = 1; i < chainActive.Height(); i++)
     {
-        pindex = chainActive[i];
-        era = get_LABS_ERA(pindex->nTime);
+        era = get_LABS_ERA(chainActive[i]->GetBlockTime());
         if ( era > lastera )
         {
             char str[16];
@@ -288,7 +285,7 @@ UniValue getinfo(const UniValue& params, bool fHelp, const CPubKey& mypk)
         }
         obj.push_back(Pair("pubkey", NOTARY_PUBKEY));
     }
-    obj.push_back(Pair("labs_era", get_LABS_ERA(chainActive.LastTip()->GetBlockTime())));
+    //obj.push_back(Pair("labs_era", get_LABS_ERA(chainActive.LastTip()->GetBlockTime())));
     if ( ASSETCHAINS_CC != 0 )
         obj.push_back(Pair("CCid",        (int)ASSETCHAINS_CC));
     obj.push_back(Pair("name",        ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));

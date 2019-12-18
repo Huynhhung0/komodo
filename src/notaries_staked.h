@@ -92,7 +92,8 @@ static const char *notaries_LABS[NUM_LABS_ERAS][64][2] =
 uint8_t is_LABSCHAIN(const char *chain_name);
 int32_t get_LABS_ERA(uint32_t timestamp);
 int8_t num_LABSNotaries(uint8_t *pubkeysp, int32_t era);
-int32_t LABSMINSIGS(int32_t numSN, uint32_t timestamp);
+int32_t LABSMINSIGS2(int32_t num_notaries, int32_t era);
+int32_t LABSMINSIGS(int32_t num_notaries, uint32_t timestamp);
 
 CrosschainAuthority Choose_Crosschain_auth(int32_t chosen_era);
 

@@ -889,7 +889,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
             // first check labs chains meet LABS min sigs.
             if ( islabs != 0 ) 
             {
-                if ( notarized= (numvalid >= LABSMINSIGS(numnotaries,block.nTime)) != 0 )
+                if ( notarized= (numvalid >= LABSMINSIGS2(numnotaries,labs_era)) != 0 && !fJustCheck) 
                     printf("[%s:%d] txi.%d signedmask.%llx numvins.%d numvouts.%d <<<<<<<<<<<  notarized\n",ASSETCHAINS_SYMBOL,height,i,(long long)signedmask,numvins,numvouts);
             } 
             else if ( ((height < 90000 || (signedmask & 1) != 0) && numvalid >= KOMODO_MINRATIFY) ||

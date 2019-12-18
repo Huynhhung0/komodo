@@ -178,8 +178,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
     // labs
     { "getccdisables", 0},
     { "dpowlistunspent", 0 },
-    { "getnotarysendmany", 0 },
-    { "getnotarysendmany", 1 },
     { "getlastsegidstakes", 0 },
     { "rescanfromheight", 0 },
     { "rescanfromheight", 1 },

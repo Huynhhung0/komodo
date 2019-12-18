@@ -34,7 +34,7 @@ int32_t get_LABS_ERA(uint32_t timestamp)
         return(0);
     for (i = 1; i < NUM_LABS_ERAS; i++)
     {
-        if (timestamp <= LABS_NOTARIES_TIMESTAMP[i] && timestamp >= (LABS_NOTARIES_TIMESTAMP[i-1] + LABS_ERA_GAP))
+        if (timestamp <= LABS_NOTARIES_TIMESTAMP[i] && timestamp > (LABS_NOTARIES_TIMESTAMP[i-1] + LABS_ERA_GAP))
             return(i);
     }
     return(-1);
@@ -63,11 +63,9 @@ int8_t num_LABSNotaries(uint8_t* pubkeysp, int32_t era)
     return(num);
 }
 
-int32_t LABSMINSIGS(int32_t num_notaries, uint32_t timestamp)
+int32_t LABSMINSIGS2(int32_t num_notaries, int32_t era)
 {
-    if (num_notaries == 64)
-        return(num_notaries/5);
-    int32_t era = get_LABS_ERA(timestamp), n, minsigs=0;
+    int32_t n, minsigs = 0;
     if ( era >= 0 )
     {
         n = num_notaries != 0 ? num_notaries : num_notaries_LABS[era];
@@ -78,12 +76,19 @@ int32_t LABSMINSIGS(int32_t num_notaries, uint32_t timestamp)
     return minsigs;
 }
 
+int32_t LABSMINSIGS(int32_t num_notaries, uint32_t timestamp)
+{
+    if (num_notaries == 64) // notary pay, calls this for KMD notaries if notarypay is used. 
+        return(num_notaries/5);
+    return(LABSMINSIGS2(num_notaries, get_LABS_ERA(timestamp)));
+}
+
 CrosschainAuthority Choose_Crosschain_auth(int32_t era) 
 {
   CrosschainAuthority auth;
   if ( era >= 0 )
   {
-      auth.requiredSigs = (num_notaries_LABS[era] / 5);
+      auth.requiredSigs = LABSMINSIGS2(0,era);
       auth.size = num_notaries_LABS[era];
       for (int n=0; n<auth.size; n++)
           for (size_t i=0; i<33; i++)
