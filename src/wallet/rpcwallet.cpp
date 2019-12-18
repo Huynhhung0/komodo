@@ -1715,23 +1715,23 @@ UniValue sendmany(const UniValue& params, bool fHelp, const CPubKey& mypk)
     if (params.size() > 4)
         subtractFeeFromAmount = params[4].get_array();
 
+    std::set<CTxDestination> destinations;
     std::vector<CRecipient> vecSend;
 
     CAmount totalAmount = 0;
     std::vector<std::string> keys = sendTo.getKeys();
-    int32_t i = 0;
     for (const std::string& name_ : keys) {
         CTxDestination dest = DecodeDestination(name_);
         if (!IsValidDestination(dest)) {
-            CScript tmpspk;
-            tmpspk << ParseHex(name_) << OP_CHECKSIG;
-            if ( !ExtractDestination(tmpspk, dest, true) )
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address or pubkey: ") + name_);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address: ") + name_);
         }
+            if (destinations.count(dest)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
+        }
+        destinations.insert(dest);
+
         CScript scriptPubKey = GetScriptForDestination(dest);
-        
-        CAmount nAmount = AmountFromValue(sendTo[i]);
-        i++;
+        CAmount nAmount = AmountFromValue(sendTo[name_]);
         if (nAmount <= 0)
             throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
         totalAmount += nAmount;

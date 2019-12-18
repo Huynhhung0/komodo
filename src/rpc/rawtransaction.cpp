@@ -864,7 +864,7 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp, const CPubKey&
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Komodo address or script: ") + name_);
             }
 
-            if (!(fExperimentalMode && IS_KOMODO_NOTARY)) {
+            if (!(fExperimentalMode && (IS_KOMODO_NOTARY != 0 || IS_LABS_NOTARY != 0))) {
                 // support of sending duplicates in createrawtransaction requires experimental features enabled and
                 // notary flag, to prevent common users to get messed up with duplicates
 
