@@ -808,10 +808,6 @@ int32_t komodo_notarycmp(uint8_t *scriptPubKey,int32_t scriptlen,uint8_t pubkeys
     return(-1);
 }
 
-// int32_t (!!!)
-/*
-    read blackjok3rtt comments in main.cpp 
-*/
 int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
 {
     static int32_t hwmheight;
@@ -852,8 +848,7 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         }
     }
     komodo_currentheight_set(chainActive.LastTip()->GetHeight());
-    int transaction = 0;
-    islabs= is_LABSCHAIN(ASSETCHAINS_SYMBOL);
+    islabs = is_LABSCHAIN(ASSETCHAINS_SYMBOL);
     labs_era = get_LABS_ERA(pindex->GetBlockTime());
     if ( pindex != 0 )
     {
@@ -861,9 +856,10 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         txn_count = block.vtx.size();
         for (i=0; i<txn_count; i++)
         {
+            // labs era = -1, means a gap, ignore any notarizations, labs = 255 is a banned chain no notarizations are valid. 
             if ( islabs > 0 && (islabs == 255 || labs_era < 0) )
                 break;
-            // Notary pay chains need notarisation in position 1, ignore the rest on validation. Check notarisation is 1 on check.
+            // Notary pay chains need notarisation in position 1, scan entire block on check to verify a notarization block, on validation we know there is only 1 notarization tx so dont check the rest of the block.
             if ( !fJustCheck && i > 1 && ASSETCHAINS_NOTARY_PAY[0] != 0 )
                 break;
             txhash = block.vtx[i].GetHash();
@@ -890,9 +886,15 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
                 } //else printf("cant get scriptPubKey for ht.%d txi.%d vin.%d\n",height,i,j);
             }
             numvalid = bitweight(signedmask);
-            if ( ((height < 90000 || (signedmask & 1) != 0) && numvalid >= KOMODO_MINRATIFY) ||
-                (islabs == 0 && numvalid >= KOMODO_MINRATIFY && ASSETCHAINS_SYMBOL[0] != 0) ||
-                (numvalid > LABSMINSIGS(numnotaries,block.nTime)) )
+            // first check labs chains meet LABS min sigs.
+            if ( islabs != 0 ) 
+            {
+                if ( notarized= (numvalid >= LABSMINSIGS(numnotaries,block.nTime)) != 0 )
+                    printf("[%s:%d] txi.%d signedmask.%llx numvins.%d numvouts.%d <<<<<<<<<<<  notarized\n",ASSETCHAINS_SYMBOL,height,i,(long long)signedmask,numvins,numvouts);
+            } 
+            else if ( ((height < 90000 || (signedmask & 1) != 0) && numvalid >= KOMODO_MINRATIFY) ||
+                  (numvalid >= KOMODO_MINRATIFY && ASSETCHAINS_SYMBOL[0] != 0) ||
+                  numvalid > (numnotaries/5) )
             {
                 if ( !fJustCheck && ASSETCHAINS_SYMBOL[0] != 0)
                 {
@@ -911,7 +913,6 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
                         fwrite(&signedmask,1,sizeof(signedmask),signedfp);
                         fflush(signedfp);
                     }
-                    transaction = i;
                     printf("[%s] ht.%d txi.%d signedmask.%llx numvins.%d numvouts.%d <<<<<<<<<<<  notarized\n",ASSETCHAINS_SYMBOL,height,i,(long long)signedmask,numvins,numvouts);
                 }
                 notarized = 1;
@@ -1008,25 +1009,20 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
         //    printf("%s ht.%d\n",ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL,height);
         if ( !fJustCheck && pindex->GetHeight() == hwmheight )
             komodo_stateupdate(height,0,0,0,zero,0,0,0,0,height,(uint32_t)pindex->nTime,0,0,0,0,zero,0);
-    } 
+    }
     else 
         { fprintf(stderr,"komodo_connectblock: unexpected null pindex\n"); return(0); }
     //KOMODO_INITDONE = (uint32_t)time(NULL);
     //fprintf(stderr,"%s end connect.%d\n",ASSETCHAINS_SYMBOL,pindex->GetHeight());
     if (fJustCheck)
     {
+        // 0 notarizations in this block. 
         if ( notarisations.size() == 0 )
             return(0);
-        if ( notarisations.size() == 1 && notarisations[0] == 1 )
+        else if ( notarisations.size() == 1 && notarisations[0] == 1 ) // 1 notarisation is tx 1 of the block, no other notarizations exist. 
             return(1);
-        if ( notarisations.size() > 1 || (notarisations.size() == 1 && notarisations[0] != 1) )
-            return(-1);
-        
-        fprintf(stderr,"komodo_connectblock: unxexpected behaviour when fJustCheck == true, report blackjok3rtt plz ! \n");
-        /* this needed by gcc-8, it counts here that control reaches end of non-void function without this.
-           by default, we count that if control reached here -> the valid notarization isnt in position 1 or there are too many notarizations in this block.
-        */
-        return(-1); 
+        else 
+            return(-1); // there is more than 1 notarization or the notarization is not in tx position 1. 
     }
     else return(0);
 }
