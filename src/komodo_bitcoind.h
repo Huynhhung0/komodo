@@ -1552,7 +1552,7 @@ arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t he
             continue;
         if ( (pindex= komodo_chainactive(ht)) != 0 )
         {
-            if ( komodo_segid(0,ht) >= 0 )
+            if ( komodo_segid((firstblockseen<0),ht) >= 0 )
             {
                 n++;
                 percPoS++;
