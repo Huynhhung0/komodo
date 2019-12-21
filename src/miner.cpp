@@ -1910,7 +1910,7 @@ void static BitcoinMiner()
                           //  MilliSleep(30);
                         return false;
                     }
-                    if ( IS_KOMODO_NOTARY != 0 && B.nTime > GetAdjustedTime() )
+                    if ( IS_KOMODO_NOTARY != 0 && B.nTime > GetAdjustedTime() && !fRequestShutdown )
                     {
                         fprintf(stderr,"need to wait %d seconds to submit block\n",(int32_t)(B.nTime - GetAdjustedTime()));
                         while ( GetAdjustedTime() < B.nTime-2 )
@@ -1918,7 +1918,7 @@ void static BitcoinMiner()
                             sleep(1);
                             if ( chainActive.Height() >= Mining_height )
                             {
-                                fprintf(stderr,"new block arrived %d seconds until our block elegible\n",(int32_t)(B.nTime - GetAdjustedTime()));
+                                fprintf(stderr,"new block arrived, %d seconds until our block elegible\n",(int32_t)(B.nTime - GetAdjustedTime()));
                                 return(false);
                             }
                         }
