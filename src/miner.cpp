@@ -285,9 +285,9 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             }
         }
         pblock->nTime = GetAdjustedTime();
-        int8_t numSN = 0; uint8_t notarypubkeys[64][33] = {0};
+        int8_t numNN = 0; uint8_t notarypubkeys[64][33];
         if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
-            numSN = komodo_notaries(notarypubkeys, nHeight, pblock->nTime);
+            numNN = komodo_notaries(notarypubkeys, nHeight, pblock->nTime);
 
         CCoinsViewCache view(pcoinsTip);
         uint32_t expired; uint64_t commission;
@@ -338,16 +338,16 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             CAmount nTotalIn = 0;
             bool fMissingInputs = false;
             bool fNotarisation = false;
-            std::set<int8_t> TMP_NotarisationNotaries; // use set so we only get tx with unique vins.
+            std::set<int8_t> setNotarisationNotaries; // use set so we only get tx with unique vins.
             if (tx.IsCoinImport())
             {
                 CAmount nValueIn = GetCoinImportValue(tx); // burn amount
                 nTotalIn += nValueIn;
                 dPriority += (double)nValueIn * 1000;  // flat multiplier... max = 1e16.
             } else {
-                TMP_NotarisationNotaries.clear();
+                setNotarisationNotaries.clear();
                 bool fToCryptoAddress = false;
-                if ( numSN != 0 && notarypubkeys[0][0] != 0 && komodo_is_notarytx(tx) == 1 )
+                if ( numNN != 0 && komodo_is_notarytx(tx) == 1 )
                     fToCryptoAddress = true;
 
                 BOOST_FOREACH(const CTxIn& txin, tx.vin)
@@ -397,19 +397,17 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                     
                     uint8_t *script; int32_t scriptlen; uint256 hash; CTransaction tx1;
                     // loop over notaries array and extract index of signers.
-                    if ( fToCryptoAddress && myGetTransaction(txin.prevout.hash,tx1,hash) )
+                    if ( fToCryptoAddress ) 
                     {
-                        for (int8_t i = 0; i < numSN; i++) 
-                        {
-                            script = (uint8_t *)&tx1.vout[txin.prevout.n].scriptPubKey[0];
-                            scriptlen = (int32_t)tx1.vout[txin.prevout.n].scriptPubKey.size();
+                        script = (uint8_t *)&coins->vout[txin.prevout.n].scriptPubKey[0];
+                        scriptlen = (int32_t)coins->vout[txin.prevout.n].scriptPubKey.size();
+                        for (int32_t i = 0; i < numNN; i++) 
                             if ( scriptlen == 35 && script[0] == 33 && script[34] == OP_CHECKSIG && memcmp(script+1,notarypubkeys[i],33) == 0 )
-                                TMP_NotarisationNotaries.insert(i);
-                        }
+                                setNotarisationNotaries.insert(i);
                     }
                     dPriority += (double)nValueIn * nConf;
                 }
-                if ( numSN != 0 && notarypubkeys[0][0] != 0 && TMP_NotarisationNotaries.size() >= LABSMINSIGS(numSN,(uint32_t)pblock->nTime) )
+                if ( numNN != 0 && setNotarisationNotaries.size() >= LABSMINSIGS(numNN,(uint32_t)pblock->nTime) )
                     fNotarisation = true;
                 nTotalIn += tx.GetShieldedValueIn();
             }
@@ -425,39 +423,34 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
 
             CFeeRate feeRate(nTotalIn-tx.GetValueOut(), nTxSize);
 
-            if ( fNotarisation && ASSETCHAINS_NOTARY_PAY[0] != 0 ) 
+            if ( ASSETCHAINS_NOTARY_PAY[0] != 0 )
             {
-                if ( tx.vout.size() == 2 && tx.vout[1].nValue == 0 )
+                if ( fNotarisation && tx.vout.size() == 2 && tx.vout[1].scriptPubKey.IsOpReturn() ) 
                 {
                     // Get the OP_RETURN for the notarisation
                     uint8_t *script = (uint8_t *)&tx.vout[1].scriptPubKey[0];
                     int32_t scriptlen = (int32_t)tx.vout[1].scriptPubKey.size();
-                    if ( script[0] == OP_RETURN )
+                    Notarisations++;
+                    if ( Notarisations > 1 ) 
                     {
-                        Notarisations++;
-                        if ( Notarisations > 1 ) 
-                        {
-                            fprintf(stderr, "skipping notarization.%d\n",Notarisations);
-                            // Any attempted notarization needs to be in its own block!
-                            continue;
-                        }
-                        int32_t notarizedheight = komodo_getnotarizedheight(pblock->nTime, nHeight, script, scriptlen);
-                        if ( notarizedheight != 0 )
-                        {
-                            // this is the first one we see, add it to the block as TX1 
-                            for (auto notary : TMP_NotarisationNotaries)
-                                NotarisationNotaries.push_back(notary);
-                            dPriority = 1e16;
-                            fNotarisationBlock = true;
-                            //fprintf(stderr, "Notarisation %s set to maximum priority\n",hash.ToString().c_str());
-                        }
+                        fprintf(stderr, "skipping notarization.%d\n",Notarisations);
+                        // Only allow 1 notarization in each block.
+                        continue;
+                    }
+                    if ( komodo_getnotarizedheight(pblock->nTime, nHeight, script, scriptlen) != 0 )
+                    {
+                        for (auto notary : setNotarisationNotaries)
+                            NotarisationNotaries.push_back(notary);
+                        dPriority = 1e16;
+                        fNotarisationBlock = true;
+                        //fprintf(stderr, "Notarisation %s set to maximum priority\n",hash.ToString().c_str());
                     }
                 }
-            }
-            else if ( dPriority == 1e16 )
-            {
-                dPriority -= 10;
-                // make sure notarisation is tx[1] in block. 
+                else if ( dPriority == 1e16 )
+                {
+                    // set all tx with max priorty to slightly less than max priorty for notary pay to force notarization in block.vtx[1]
+                    dPriority -= 10;
+                }
             }
             if (porphan)
             {
@@ -1940,6 +1933,7 @@ void static BitcoinMiner()
                                 return(false);
                             }
                         }
+                        pblock->nBits = GetNextWorkRequired(chainActive.LastTip(), pblock, Params().GetConsensus());
                     }
                     if ( ASSETCHAINS_STAKED == 0 )
                     {
@@ -2095,7 +2089,7 @@ void static BitcoinMiner()
                     }
                     // Update nNonce and nTime
                     pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
-                    pblock->nBits = savebits;                
+                    pblock->nBits = savebits;
                     if ( ASSETCHAINS_ADAPTIVEPOW > 0 )
                     {
                         UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);

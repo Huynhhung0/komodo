@@ -4025,7 +4025,10 @@ void static UpdateTip(CBlockIndex *pindexNew) {
     if ( ASSETCHAINS_SYMBOL[0] == 0 ) 
         progress = Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), chainActive.LastTip());
     else 
+    {
+        komodo_longestchain();
         progress = (KOMODO_LONGESTCHAIN > 0 ) ? (double) chainActive.Height() / KOMODO_LONGESTCHAIN : 1.0;
+    }
 
     LogPrintf("%s: new best=%s  height=%d  log2_work=%.8g  log2_stake=%.8g  tx=%lu  date=%s progress=%f  cache=%.1fMiB(%utx)\n", __func__,
               chainActive.LastTip()->GetBlockHash().ToString(), chainActive.Height(),
@@ -4036,9 +4039,12 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
 
     cvBlockChange.notify_all();
-    static int32_t printed = 0;
-    if ( KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN && printed++ < 1 )
-        fprintf(stderr, "[%s:%lld] >>>>>>>>>>>>>>>>>>>>>>>>>>>>> SYNCED in %lld seconds\n", ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL, (long long)chainActive.Height(), (long long)nTimeBestReceived-(ASSETCHAINS_SYMBOL[0]==0?KOMODO_PASSPORT_INITDONE:ASSETCHAIN_INIT));
+    static bool printed = false; static int32_t blocks = 0;
+    if ( ++blocks > 0 && KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN && printed == false )
+    {
+        printed = true;
+        LogPrintf("[%s:%d] >>>>>>>>>>>>>>>>>>>>>> synced %d blocks in %s\n", ASSETCHAINS_SYMBOL[0]==0?"KMD":ASSETCHAINS_SYMBOL, chainActive.Height(), blocks, DateTimeStrFormat("%Hh %Mm %Ss", nTimeBestReceived-(ASSETCHAINS_SYMBOL[0]==0?KOMODO_PASSPORT_INITDONE:ASSETCHAIN_INIT)));
+    }
     /*
     // https://github.com/zcash/zcash/issues/3992 -> https://github.com/zcash/zcash/commit/346d11d3eb2f8162df0cb00b1d1f49d542495198
 
@@ -5385,12 +5391,12 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
             CBlockIndex *heightblock = chainActive[nHeight];
             if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
                 return true;
-            return state.DoS(100, error("%s: trying to change height 1 forbidden", __func__));
+            return state.DoS(100, error("%s: trying to change height 1 forbidden", __func__),REJECT_CHECKPOINT, "block 1 mismatch");
         }
         if ( nHeight != 0 )
         {
             if ( pcheckpoint != 0 && nHeight < pcheckpoint->GetHeight() )
-                return state.DoS(100, error("%s: forked chain older than last checkpoint (height %d) vs %d", __func__, nHeight,pcheckpoint->GetHeight()));
+                return state.DoS(100, error("%s: forked chain older than last checkpoint (height %d) vs %d", __func__, nHeight,pcheckpoint->GetHeight()),REJECT_CHECKPOINT, "checkpoint-mismatch");
             if ( komodo_checkpoint(&notarized_height,nHeight,hash) < 0 )
             {
                 CBlockIndex *heightblock = chainActive[nHeight];
@@ -5398,7 +5404,7 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
                 {
                     //fprintf(stderr,"got a pre notarization block that matches height.%d\n",(int32_t)nHeight);
                     return true;
-                } else return state.DoS(100, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height));
+                } else return state.DoS(100, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height),REJECT_CHECKPOINT, "ntz-checkpoint-mismatch");
             }
         }
     }
@@ -5519,8 +5525,9 @@ bool AcceptBlockHeader(int32_t *futureblockp,const CBlockHeader& block, CValidat
     if (!ContextualCheckBlockHeader(block, state, pindexPrev))
     {
         //fprintf(stderr,"AcceptBlockHeader ContextualCheckBlockHeader failed\n");
-        LogPrintf("AcceptBlockHeader ContextualCheckBlockHeader failed\n");
-        return false;
+        //LogPrintf("AcceptBlockHeader ContextualCheckBlockHeader failed\n");
+        //return false;
+        return state.DoS(10, error("%s: failed ContextualCheckBlockHeader", __func__));
     }
     if (pindex == NULL)
     {
@@ -6233,8 +6240,8 @@ bool static LoadBlockIndexDB()
     double progress = 0.5;
     if ( ASSETCHAINS_SYMBOL[0] == 0 ) 
         progress = Checkpoints::GuessVerificationProgress(chainparams.Checkpoints(), chainActive.LastTip());
-    else if (KOMODO_LONGESTCHAIN > 0 )
-        progress = (double) chainActive.Height() / KOMODO_LONGESTCHAIN;
+    //else if (KOMODO_LONGESTCHAIN > 0 )
+    //    progress = (double) chainActive.Height() / KOMODO_LONGESTCHAIN;
     LogPrintf("%s: hashBestChain=%s height=%d date=%s progress=%f\n", __func__,
               chainActive.LastTip()->GetBlockHash().ToString(), chainActive.Height(),
               DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.LastTip()->GetBlockTime()),
@@ -7725,9 +7732,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     else if (strCommand == "tx")
     {
-        if (IsInitialBlockDownload())
-            return true;
-
         vector<uint256> vWorkQueue;
         vector<uint256> vEraseQueue;
         CTransaction tx;
@@ -7737,7 +7741,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         pfrom->AddInventoryKnown(inv);
 
         LOCK(cs_main);
-
+        
+        if (IsInitialBlockDownload()) // needs cs_main lock. 
+            return true;
+            
         bool fMissingInputs = false;
         CValidationState state;
 
