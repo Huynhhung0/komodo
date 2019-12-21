@@ -64,6 +64,8 @@ extern std::string ASSETCHAINS_SELFIMPORT;
 //int32_t GetSelfimportProof(std::string source, CMutableTransaction &mtx, CScript &scriptPubKey, TxProof &proof, std::string rawsourcetx, int32_t &ivout, uint256 sourcetxid, uint64_t burnAmount);
 std::string MakeCodaImportTx(uint64_t txfee, std::string receipt, std::string srcaddr, std::vector<CTxOut> vouts);
 
+bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int32_t numNN, const std::vector<CTxIn> &vins, std::vector<int8_t> &NotarisationNotaries);
+
 UniValue assetchainproof(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     uint256 hash;
@@ -788,9 +790,6 @@ UniValue selfimport(const UniValue& params, bool fHelp, const CPubKey& mypk)
     }
     return result;
 }
-
-bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int8_t &numNN, const std::vector<CTxIn> &vin, std::vector<int8_t> &NotarisationNotaries);
-
 
 UniValue importdual(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
