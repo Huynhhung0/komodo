@@ -831,18 +831,18 @@ int32_t komodo_connectblock(bool fJustCheck, CBlockIndex *pindex,CBlock& block)
     //fprintf(stderr,"%s connect.%d\n",ASSETCHAINS_SYMBOL,pindex->nHeight);
     numnotaries = komodo_notaries(pubkeys,pindex->GetHeight(),pindex->GetBlockTime());
     calc_rmd160_sha256(rmd160,pubkeys[0],33);
-    if ( pindex->GetHeight() > hwmheight )
-        hwmheight = pindex->GetHeight();
-    else
-    {
-        if ( pindex->GetHeight() != hwmheight )
-        {
-            printf("%s hwmheight.%d vs pindex->GetHeight().%d t.%u reorg.%d\n",ASSETCHAINS_SYMBOL,hwmheight,pindex->GetHeight(),(uint32_t)pindex->nTime,hwmheight-pindex->GetHeight());
-            komodo_purge_ccdata((int32_t)pindex->GetHeight());
+    if (!fJustCheck)
+    {    
+        if ( pindex->GetHeight() > hwmheight )
             hwmheight = pindex->GetHeight();
-        }
-        if (!fJustCheck)
+        else
         {
+            if ( pindex->GetHeight() != hwmheight )
+            {
+                printf("%s hwmheight.%d vs pindex->GetHeight().%d t.%u reorg.%d\n",ASSETCHAINS_SYMBOL,hwmheight,pindex->GetHeight(),(uint32_t)pindex->nTime,hwmheight-pindex->GetHeight());
+                komodo_purge_ccdata((int32_t)pindex->GetHeight());
+                hwmheight = pindex->GetHeight();
+            }
             komodo_event_rewind(sp,symbol,pindex->GetHeight());
             komodo_stateupdate(pindex->GetHeight(),0,0,0,zero,0,0,0,0,-pindex->GetHeight(),pindex->nTime,0,0,0,0,zero,0);
         }
