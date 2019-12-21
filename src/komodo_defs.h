@@ -381,7 +381,7 @@ extern int32_t USE_EXTERNAL_PUBKEY;
 extern char NOTARY_ADDRESSES[NUM_KMD_SEASONS][64][64];
 extern int32_t KOMODO_TESTNODE, KOMODO_SNAPSHOT_INTERVAL,IS_LABS_NOTARY;
 extern int32_t ASSETCHAINS_EARLYTXIDCONTRACT;
-extern int32_t ASSETCHAINS_STAKED_SPLIT_PERCENTAGE;
+extern int32_t ASSETCHAINS_STAKED_SPLIT_PERCENTAGE,ASSETCHAINS_STAKED_RETURN_TO_SEGID;
 int tx_height( const uint256 &hash );
 extern std::vector<std::string> vWhiteListAddress;
 extern bool fWalletFilter;

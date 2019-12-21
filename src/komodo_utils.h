@@ -1717,6 +1717,7 @@ void komodo_args(char *argv0)
     KOMODO_DEALERNODE = GetArg("-dealer",0);
     KOMODO_TESTNODE = GetArg("-testnode",0);
     ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = GetArg("-splitperc",0);
+    ASSETCHAINS_STAKED_RETURN_TO_SEGID = GetArg("-returntosegid",0);
     if ( strlen(NOTARY_PUBKEY.c_str()) == 66 )
     {
         decode_hex(NOTARY_PUBKEY33,33,(char *)NOTARY_PUBKEY.c_str());

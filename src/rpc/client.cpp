@@ -182,6 +182,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "rescanfromheight", 0 },
     { "rescanfromheight", 1 },
     { "setstakingsplit", 0 },
+    { "setstakingsplit", 1 },
 };
 
 class CRPCConvertTable

@@ -615,28 +615,20 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
                 blocktime = GetAdjustedTime();
                 uint256 merkleroot = komodo_calcmerkleroot(pblock, pindexPrev->GetBlockHash(), nHeight, true, scriptPubKeyIn);
                 //fprintf(stderr, "MINER: merkleroot.%s\n", merkleroot.GetHex().c_str());
-                /*
-                    Instead of a split RPC and writing heaps of code, I added this.
-                    It works with the consensus, because the stakeTx valuein-valueout+blockReward is enforced for the coinbase of staking blocks.
-                    For example:
-                    utxovalue = 30;
-                    30% of the value of the staking utxo is added to the coinbase the same as fees,returning the remaining 70% to the address that staked.
-                    utxovalue can be adjusted from any number 0 to 100 via the setstakingsplit RPC.
-                    Can also be set with -splitperc= command line arg, or conf file. 
-                    0 means that it functions as it did previously (default).
-                    100 means it automates the pos64staker in the daemon, combining the stake tx and the coinbase to an address. Either to -pubkey or a new address from the keystore.
-                    Mining with a % here and without pubkey will over time create varied sized utxos, and evenly distribute them over many addresses and segids.
-                */
                 {
                     LOCK(cs_main);
+                    // split the mined coinbase between the coinbase transaction vout[0] and the staking address. 
                     utxovalue = ASSETCHAINS_STAKED_SPLIT_PERCENTAGE;
+                    // mine the coinbase tx to the staking tx address
+                    if ( utxovalue > 0 && ASSETCHAINS_STAKED_RETURN_TO_SEGID != 0 )
+                        scriptPubKeyIn = CScript(txStaked.vout[0].scriptPubKey);
                 }
                  
                 siglen = komodo_staked(txStaked, pblock->nBits, &blocktime, &txtime, &utxotxid, &utxovout, &utxovalue, utxosig, merkleroot);
                 pblock->nTime = blocktime;
                 if ( (newStakerActive= komodo_newStakerActive(nHeight, pblock->nTime)) != 0 )
                     nFees += utxovalue;
-                //fprintf(stderr, "added to coinbase.%llu staking tx valueout.%llu\n", (long long unsigned)utxovalue, (long long unsigned)txStaked.vout[0].nValue);
+                //fprintf(stderr, "added to coinbase.%llu staking tx valueout.%llu returntosegid.%d\n", (long long unsigned)utxovalue, (long long unsigned)txStaked.vout[0].nValue, ASSETCHAINS_STAKED_RETURN_TO_SEGID);
                 if ( komodo_waituntilelegible(pblock, pindexPrev, stakeHeight, ASSETCHAINS_STAKED_BLOCK_FUTURE_HALF) == 0 )
                 {
                     ENTER_CRITICAL_SECTION(cs_main);
@@ -755,26 +747,23 @@ CBlockTemplate* CreateNewBlock(CPubKey _pk,const CScript& _scriptPubKeyIn, int32
             txNew.vout[1].nValue = 0;
             // timelocks and commissions are currently incompatible due to validation complexity of the combination
         } 
-        if ( fNotarisationBlock && pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].nValue == 0 )
+        if ( fNotarisationBlock && pblock->vtx[1].vout.size() == 2 && pblock->vtx[1].vout[1].scriptPubKey.IsOpReturn() )
         {
             // Get the OP_RETURN for the notarisation
             uint8_t *script = (uint8_t *)&pblock->vtx[1].vout[1].scriptPubKey[0];
             int32_t scriptlen = (int32_t)pblock->vtx[1].vout[1].scriptPubKey.size();
-            if ( script[0] == OP_RETURN )
+            uint64_t totalsats = komodo_notarypay(txNew, NotarisationNotaries, pblock->nTime, nHeight, script, scriptlen);
+            if ( totalsats == 0 )
             {
-                uint64_t totalsats = komodo_notarypay(txNew, NotarisationNotaries, pblock->nTime, nHeight, script, scriptlen);
-                if ( totalsats == 0 )
+                fprintf(stderr, "Could not create notary payment, trying again.\n");
+                /*if ( ASSETCHAINS_SYMBOL[0] == 0 || (ASSETCHAINS_SYMBOL[0] != 0 && !isStake) )
                 {
-                    fprintf(stderr, "Could not create notary payment, trying again.\n");
-                    /*if ( ASSETCHAINS_SYMBOL[0] == 0 || (ASSETCHAINS_SYMBOL[0] != 0 && !isStake) )
-                    {
-                        LEAVE_CRITICAL_SECTION(cs_main);
-                        LEAVE_CRITICAL_SECTION(mempool.cs);
-                    } */
-                    return(0);
-                }
-                //fprintf(stderr, "Created notary payment coinbase totalsat.%lu\n",totalsats);    
-            } else fprintf(stderr, "vout 2 of notarisation is not OP_RETURN scriptlen.%i\n", scriptlen);
+                    LEAVE_CRITICAL_SECTION(cs_main);
+                    LEAVE_CRITICAL_SECTION(mempool.cs);
+                } */
+                return(0);
+            }
+            //fprintf(stderr, "Created notary payment coinbase totalsat.%lu\n",totalsats);    
         }
         if ( ASSETCHAINS_CBOPRET != 0 )
         {

@@ -1103,51 +1103,40 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp, const CPubKey& mypk
 UniValue setstakingsplit(const UniValue& params, bool fHelp, const CPubKey& mypk)
 {
     UniValue result(UniValue::VOBJ);
-    if ( fHelp || params.size() > 1 )
+    if ( fHelp || params.size() > 2 )
         throw runtime_error(
         "setstakingsplit\n"
-        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase.\n"
+        "\nSets the split ratio as a percentage for the PoS64 staker. Sends entered % of staking tx value to the mined coinbase. Setting optional second param to true sends the coinbase vout 0 to the staking tx address.\n"
         "\nArguments:\n"
         "1. \"split_percentage\"         (numeric) split ratio range 0-100.\n"
+        "1. \"return_to_segid\"          (bool, optional). true sends coinbase to staking tx address, false sends coinbase to random address/segid or uses -pubkey if set.\n"
         "\nResult:\n"
         "  {\n"
         "    \"split_percentage\" : \"split_percentage\"     (numeric) range 0-100\n"
+        "    \"return_to_segid\" : \"return_to_segid\"      (bool)\n"
         "  }\n"
         "\nExamples:\n"
-        + HelpExampleCli("setstakingsplit", "0")
+        + HelpExampleCli("setstakingsplit", "0 true")
         + HelpExampleRpc("setstakingsplit", "100")
     );
     
     LOCK(cs_main);
-    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) != 1 ) 
+    if ( komodo_newStakerActive(chainActive.Height(),(uint32_t)time(NULL)) == 0 ) 
     {
         throw runtime_error("New PoS64 staker not active yet\n");
     }
-    if ( params.size() == 0 )
+    if ( params.size() > 0 )
     {
-        result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
-    }
-    else
-    {
-        int32_t perc;
-        try {
-            perc = params[0].get_int();
-        }
-        catch (...) {
-            std::string strperc = params[0].get_str();
-            perc = std::stoi(strperc);
-        }
-        
+        int32_t perc = params[0].get_int();
         if ( perc >= 0 && perc <= 100 ) 
-        {
             ASSETCHAINS_STAKED_SPLIT_PERCENTAGE = perc;
-            result.push_back(Pair("split_percentage", perc));
-        }
         else 
-        {
             throw runtime_error("must be between 0 and 100 inclusive.\n");
-        }
+        if ( params.size() > 1 )
+            ASSETCHAINS_STAKED_RETURN_TO_SEGID = params[1].get_bool();
     }
+    result.push_back(Pair("split_percentage", ASSETCHAINS_STAKED_SPLIT_PERCENTAGE));
+    result.push_back(Pair("return_to_segid", ASSETCHAINS_STAKED_RETURN_TO_SEGID!=0?"true":"false"));
     return result;
 }
 
