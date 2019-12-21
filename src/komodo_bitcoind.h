@@ -2081,11 +2081,13 @@ bool GetNotarisationNotaries(uint8_t notarypubkeys[64][33], int32_t numNN, const
         n = vin.prevout.n;
         if ( pcoinsTip->GetCoins(vin.prevout.hash, coins) && n < coins.vout.size() && !coins.vout[n].IsNull() )
         {
+            //fprintf(stderr, "fetched tx from coinsview script.%s\n",coins.vout[n].scriptPubKey.ToString().c_str());
             pscriptPubKey = (uint8_t *)&coins.vout[n].scriptPubKey[0];
             scriptlen = (int32_t)coins.vout[n].scriptPubKey.size();
         }
         else if ( GetTransaction(vin.prevout.hash,txin,hash,false) )
         {
+            //fprintf(stderr, "fetched tx from disk script.%s\n",txin.vout[n].scriptPubKey.ToString().c_str());
             pscriptPubKey = (uint8_t *)&txin.vout[n].scriptPubKey[0];
             scriptlen = (int32_t)txin.vout[n].scriptPubKey.size();
         } else return false;
