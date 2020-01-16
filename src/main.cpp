@@ -4040,6 +4040,8 @@ void static UpdateTip(CBlockIndex *pindexNew) {
               pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
 
     cvBlockChange.notify_all();
+    
+    // Prints the time taken to sync the chain if starting from block 0. 
     static bool printed = false; static int32_t blocks = 0;
     if ( ++blocks > 0 && KOMODO_LONGESTCHAIN > 0 && chainActive.Height() >= KOMODO_LONGESTCHAIN && printed == false )
     {
@@ -4735,7 +4737,6 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
     uint256 hash = block.GetHash();
     BlockMap::iterator it = mapBlockIndex.find(hash);
     BlockMap::iterator miPrev = mapBlockIndex.find(block.hashPrevBlock);
-
     // the following block is for debugging, comment when not needed
     /*
     std::vector<BlockMap::iterator> vrit;
@@ -5297,7 +5298,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         //static uint32_t counter;
         //if ( counter++ < 100 && ASSETCHAINS_STAKED == 0 )
         //    fprintf(stderr,"check deposit rejection\n");
-        LogPrintf("CheckBlockHeader komodo_check_deposit error");
+        LogPrintf("CheckBlock komodo_check_deposit error");
         return(false);
     }
 
@@ -5335,7 +5336,8 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
 
     int nHeight = pindexPrev->GetHeight()+1;
 
-    // Check proof of work
+    // Check proof of work 
+    // Something is wrong here, the miner and this check are returning diffrent values for the same block height!!!!
     if ( (ASSETCHAINS_SYMBOL[0] != 0 || nHeight < 235300 || nHeight > 236000) && block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
     {
         cout << block.nBits << " block.nBits vs. calc " << GetNextWorkRequired(pindexPrev, &block, consensusParams) <<
@@ -5405,7 +5407,7 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
                 {
                     //fprintf(stderr,"got a pre notarization block that matches height.%d\n",(int32_t)nHeight);
                     return true;
-                } else return state.DoS(100, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height),REJECT_CHECKPOINT, "ntz-checkpoint-mismatch");
+                } else return state.DoS(25, error("%s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height),REJECT_CHECKPOINT, "ntz-checkpoint-mismatch");
             }
         }
     }
@@ -5512,7 +5514,6 @@ bool AcceptBlockHeader(int32_t *futureblockp,const CBlockHeader& block, CValidat
             LogPrintf("AcceptBlockHeader hashPrevBlock %s not found\n",block.hashPrevBlock.ToString().c_str());
             //*futureblockp = 1;
             return(false);
-            //return state.DoS(10, error("%s: prev block not found", __func__), 0, "bad-prevblk");
         }
         pindexPrev = (*mi).second;
         if (pindexPrev == 0 )
@@ -5526,9 +5527,8 @@ bool AcceptBlockHeader(int32_t *futureblockp,const CBlockHeader& block, CValidat
     if (!ContextualCheckBlockHeader(block, state, pindexPrev))
     {
         //fprintf(stderr,"AcceptBlockHeader ContextualCheckBlockHeader failed\n");
-        //LogPrintf("AcceptBlockHeader ContextualCheckBlockHeader failed\n");
-        //return false;
-        return state.DoS(10, error("%s: failed ContextualCheckBlockHeader", __func__));
+        LogPrintf("AcceptBlockHeader ContextualCheckBlockHeader failed\n");
+        return false;
     }
     if (pindex == NULL)
     {
@@ -5584,24 +5584,22 @@ bool AcceptBlock(int32_t *futureblockp,CBlock& block, CValidationState& state, C
     // blocks which are too close in height to the tip.  Apply this test
     // regardless of whether pruning is enabled; it should generally be safe to
     // not process unrequested blocks.
-    //bool fTooFarAhead = (pindex->GetHeight() > int(chainActive.Height() + BLOCK_DOWNLOAD_WINDOW)); //MIN_BLOCKS_TO_KEEP));
-
+    bool fTooFarAhead = (pindex->GetHeight() > int(chainActive.Height() + BLOCK_DOWNLOAD_WINDOW));
+    
     // TODO: deal better with return value and error conditions for duplicate
     // and unrequested blocks.
     //fprintf(stderr,"Accept %s flags already.%d requested.%d morework.%d farahead.%d\n",pindex->GetBlockHash().ToString().c_str(),fAlreadyHave,fRequested,fHasMoreWork,fTooFarAhead);
-    
-    
-    if (fAlreadyHave) return true;
     if (!fRequested) {  // If we didn't ask for it:
-        //if (pindex->nTx != 0) return true;  // This is a previously-processed block that was pruned
+        //fprintf(stderr, "not requested block received ht.%d toofarahead.%d fHasMoreWork.%d\n", pindex->GetHeight(), fTooFarAhead, fHasMoreWork);
+        //if (pindex->nTx != 0) return true;  // This is a previously-processed block that was pruned... we cannot prune! 
         if (!fHasMoreWork) return true;     // Don't process less-work chains
-        //if (fTooFarAhead) return true;      // Block height is too high
-    }
+        if (fTooFarAhead) return true;      // Block height is too high
+    } 
 
     // See method docstring for why this is always disabled
     auto verifier = libzcash::ProofVerifier::Disabled();
-    bool fContextualCheckBlock = ContextualCheckBlock(0,block, state, pindex->pprev);
-    if ( (!CheckBlock(futureblockp,pindex->GetHeight(),pindex,block, state, verifier,0)) || !fContextualCheckBlock )
+    bool fContextualCheckBlock = false; 
+    if ( (!CheckBlock(futureblockp,pindex->GetHeight(),pindex,block, state, verifier,0)) || !(fContextualCheckBlock= ContextualCheckBlock(0,block, state, pindex->pprev)) )
     {
         static int32_t saplinght = -1;
         CBlockIndex *tmpptr;
@@ -5642,11 +5640,15 @@ bool AcceptBlock(int32_t *futureblockp,CBlock& block, CValidationState& state, C
         pindex->nStatus |= BLOCK_VALID_CONTEXT;
 
     int nHeight = pindex->GetHeight();
-    // Temp File fix. LABS has been using this for ages with no bad effects.
-    // Disabled here. Set use tmp to whatever you need to use this for. 
     int32_t usetmp = 0;
-    if ( IsInitialBlockDownload() )
-        usetmp = 0;
+    /* 
+         Temp File fix. This saves all possibly invalid blocks that cannot be fully validated until connect Tip,
+         in a seperate file, which is emptied automatically after a notarized notatization. 
+         In connect block it is moved to the main block files before checking all inputs.
+         Saves filling disk space with invalid blocks that are not in the notarized chain. 
+    */
+    //if ( IsInitialBlockDownload() && fContextualCheckBlock && *futureblockp == 0 ) 
+    //    usetmp = 0; 
 
     // Write block to history file
     try {
@@ -5661,7 +5663,7 @@ bool AcceptBlock(int32_t *futureblockp,CBlock& block, CValidationState& state, C
                 AbortNode(state, "Failed to write block");
         if (!ReceivedBlockTransactions(block, state, pindex, blockPos))
             return error("AcceptBlock(): ReceivedBlockTransactions failed");
-        if ( usetmp != 0 ) // not during initialdownload or if futureflag==0 and contextchecks ok
+        if ( usetmp != 0 )
             pindex->nStatus |= BLOCK_IN_TMPFILE;
     } catch (const std::runtime_error& e) {
         return AbortNode(state, std::string("System error: ") + e.what());
@@ -7904,7 +7906,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 if (state.IsInvalid(nDoS) && futureblock == 0)
                 {
                     if (nDoS > 0 && futureblock == 0)
-                        Misbehaving(pfrom->GetId(), nDoS/nDoS);
+                        Misbehaving(pfrom->GetId(), nDoS); 
+                        //Misbehaving(pfrom->GetId(), nDoS/nDoS); // X/X = 1. 
                     return error("invalid header received");
                 }
             }
