@@ -6441,7 +6441,7 @@ bool RewindBlockIndex(const CChainParams& params, bool& clearWitnessCaches)
         // rewind all the way.  Blocks remaining on chainActive at this point
         // must not have their validity reduced.
         if (pindexIter && !sufficientlyValidated(pindexIter) && !chainActive.Contains(pindexIter)) {
-            // Reduce validity
+            /* Reduce validity
             pindexIter->nStatus =
             std::min<unsigned int>(pindexIter->nStatus & BLOCK_VALID_MASK, BLOCK_VALID_TREE) |
             (pindexIter->nStatus & ~BLOCK_VALID_MASK);
@@ -6464,9 +6464,10 @@ bool RewindBlockIndex(const CChainParams& params, bool& clearWitnessCaches)
             pindexIter->nSequenceId = 0;
 
             // Make sure it gets written
-            /* corresponds to commented out block below as an alternative to setDirtyBlockIndex
-            vBlocks.push_back(pindexIter);
+             corresponds to commented out block below as an alternative to setDirtyBlockIndex
             */
+            vBlocks.push_back(pindexIter);
+        
             setDirtyBlockIndex.insert(pindexIter);
             if (pindexIter == pindexBestInvalid)
             {
@@ -6486,6 +6487,24 @@ bool RewindBlockIndex(const CChainParams& params, bool& clearWitnessCaches)
             }
         } else if (pindexIter->IsValid(BLOCK_VALID_TRANSACTIONS) && pindexIter->nChainTx) {
             setBlockIndexCandidates.insert(pindexIter);
+        }
+    }
+    
+    // Set pindexBestHeader to the current chain tip
+    // (since we are about to delete the block it is pointing to)
+    pindexBestHeader = chainActive.Tip(); 
+
+    // Erase block indices on-disk
+    if (!pblocktree->EraseBatchSync(vBlocks)) {
+        return AbortNode(state, "Failed to erase from block index database");
+    }
+
+    // Erase block indices in-memory
+    for (auto pindex : vBlocks) {
+        auto ret = mapBlockIndex.find(*pindex->phashBlock);
+        if (ret != mapBlockIndex.end()) {
+            mapBlockIndex.erase(ret);
+            delete pindex;
         }
     }
 
