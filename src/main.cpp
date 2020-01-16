@@ -79,7 +79,6 @@ using namespace std;
 #define TMPFILE_START 100000000
 CCriticalSection cs_main;
 extern uint8_t NOTARY_PUBKEY33[33];
-extern int32_t KOMODO_LOADINGBLOCKS,KOMODO_LONGESTCHAIN,KOMODO_INSYNC,KOMODO_CONNECTING,KOMODO_EXTRASATOSHI;
 extern int32_t KOMODO_LONGESTCHAIN,KOMODO_INSYNC,KOMODO_CONNECTING,KOMODO_EXTRASATOSHI;
 
 int32_t komodo_block2pubkey33(uint8_t *pubkey33,CBlock *block);
@@ -7180,14 +7179,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         CAddress addrMe;
         CAddress addrFrom;
         uint64_t nNonce = 1;
-        int nVersion;           // use temporary for version, don't set version number until validated as connected
         int minVersion = MIN_PEER_PROTO_VERSION;
         if ( is_LABSCHAIN(ASSETCHAINS_SYMBOL) != 0 )
             minVersion = STAKEDMIN_PEER_PROTO_VERSION;
-        vRecv >> nVersion >> pfrom->nServices >> nTime >> addrMe;
-        if (nVersion == 10300)
-            nVersion = 300;
-        if (nVersion < minVersion)
+        vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
+        if (pfrom->nVersion < minVersion)
         {
             // disconnect from peers older than this proto version
             LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->id, pfrom->nVersion);
@@ -7196,13 +7192,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->fDisconnect = true;
             return false;
         }
-
+        if (pfrom->nVersion == 10300)
+            pfrom->nVersion = 300;
         // Reject incoming connections from nodes that don't know about the current epoch
         const Consensus::Params& params = Params().GetConsensus();
         auto currentEpoch = CurrentEpoch(GetHeight(), params);
-        if (nVersion < params.vUpgrades[currentEpoch].nProtocolVersion)
+        if (pfrom->nVersion < params.vUpgrades[currentEpoch].nProtocolVersion)
         {
-            LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->id, nVersion);
+            LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->id, pfrom->nVersion);
             pfrom->PushMessage("reject", strCommand, REJECT_OBSOLETE,
                             strprintf("Version must be %d or greater",
                             params.vUpgrades[currentEpoch].nProtocolVersion));
@@ -7229,8 +7226,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->fDisconnect = true;
             return true;
         }
-
-        pfrom->nVersion = nVersion;
 
         pfrom->addrLocal = addrMe;
         if (pfrom->fInbound && addrMe.IsRoutable())
