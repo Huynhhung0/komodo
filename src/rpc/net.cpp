@@ -197,6 +197,7 @@ int32_t komodo_longestchain()
         }
         BOOST_FOREACH(const CNodeStats& stats, vstats)
         {
+             n++;
             //fprintf(stderr,"komodo_longestchain iter.%d\n",n);
             CNodeStateStats statestats;
             if ( !GetNodeStateStats(stats.nodeid,statestats) )
@@ -219,10 +220,10 @@ int32_t komodo_longestchain()
             //fprintf(stderr, "height.%d ht.%d maxheight.%d\n", height, ht, maxheight);
         }
         depth--;
-        if ( num > (n >> 1) )
+        if ( num > (n >> 2) )
         {
             if ( 0 && height != KOMODO_LONGESTCHAIN )
-                fprintf(stderr,"set %s KOMODO_LONGESTCHAIN <- %d num.%d\n",ASSETCHAINS_SYMBOL,height,num);
+                fprintf(stderr,"set %s KOMODO_LONGESTCHAIN <- %d num.%d > %d\n",ASSETCHAINS_SYMBOL,height,num, (n>>2));
             KOMODO_LONGESTCHAIN = height;
             return(height);
         }
