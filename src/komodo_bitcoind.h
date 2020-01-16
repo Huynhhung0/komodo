@@ -863,9 +863,7 @@ int32_t komodo_block2height(CBlock *block)
 int32_t komodo_block2pubkey33(uint8_t *pubkey33,CBlock *block)
 {
     int32_t n;
-    if ( KOMODO_LOADINGBLOCKS == 0 )
-        memset(pubkey33,0xff,33);
-    else memset(pubkey33,0,33);
+    memset(pubkey33,0,33);
     if ( block->vtx[0].vout.size() > 0 )
     {
         txnouttype whichType;
